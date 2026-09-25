@@ -1,0 +1,98 @@
+name: Build & Release
+
+on:
+  workflow_dispatch:          # 手动触发：发版/验证
+  push:
+    branches: [ main ]        # push 到 main 时自动构建验证
+    tags: [ 'v*' ]            # 推送 v 标签时自动发布 Release
+
+permissions:
+  contents: write             # 允许创建 Release / 上传资产
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    env:
+      JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.x
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare debug & fallback signing keystores
+        run: |
+          # debug.keystore：debug 构建专用（.gitignore 已排除，不提交）
+          if [ ! -f "${{ github.workspace }}/debug.keystore" ]; then
+            keytool -genkeypair -v -keystore debug.keystore \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          # 未配置正式签名 secrets 时，生成临时签名用于构建可安装的 release 包
+          if [ ! -f "${{ github.workspace }}/my-upload-key.jks" ]; then
+            keytool -genkeypair -v -keystore my-upload-key.jks \
+              -storepass android -keypass android -keyalg RSA -keysize 2048 \
+              -validity 10000 -alias upload -dname "CN=PixelLab, OU=Dev, O=landesheji, L=CN, S=CN, C=CN"
+            echo "Generated temporary keystore (installable, non-production)."
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Build Release APK
+        run: ./gradlew :app:assembleRelease
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'android' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'android' }}
+
+      - name: Prepare release asset names
+        run: |
+          # 与 backend/update.json 的 apkUrl 保持一致：
+          # https://github.com/shuting52/ceshipix/releases/latest/download/PixelLab-v2.1.apk
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/PixelLab-v2.1.apk
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/PixelLab-v2.1-debug.apk
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-lab-apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+
+      # ---------- 发布：推送 v* 标签时创建 GitHub Release ----------
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PixelLab ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ## PixelLab ${{ github.ref_name }}
+
+            📦 构建产物（Debug 签名，可安装体验）：
+            - `app-debug.apk` — 调试包
+            - `app-release.apk` — 正式签名包（若配置了 STORE_PASSWORD / KEY_PASSWORD secrets）
+
+            > 发布说明请在此补充。更新包在 App 内「关于 → 检查更新」即可收到。
+          files: |
+            app/build/outputs/apk/release/PixelLab-v2.1.apk
+            app/build/outputs/apk/debug/PixelLab-v2.1-debug.apk
+
+      # update.json 的 apkUrl 指向上面的固定文件名，release 资产创建后即可自动生效

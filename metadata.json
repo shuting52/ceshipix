@@ -1,0 +1,8 @@
+{
+  "name": "PixelLab",
+  "description": "PixelLab 全中文版：强大的图片与文字排版设计工具，支持3D文字效果、多图层管理、海量贴纸与形状、经典中文语录库、丰富滤镜特效、画布尺寸自定义及高清作品保存与分享。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

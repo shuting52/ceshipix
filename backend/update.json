@@ -1,0 +1,7 @@
+{
+  "versionCode": 3,
+  "versionName": "2.1",
+  "apkUrl": "https://github.com/shuting52/ceshipix/releases/latest/download/PixelLab-v2.1.apk",
+  "changelog": "PixelLab v2.1 重大升级：\n1. 新增 10 组可编辑文字模板（水晶/玻璃/刺绣/3D/霓虹/黄金金属/火焰/冰霜/故障/赛博），全部本地绘制\n2. 更新弹窗改为 CSS 特效进度条，进度跑完自动下载安装\n3. 双指手势改为缩放选中文字；画布与手机屏幕左右对齐\n4. 修复导出图片文字显示不全、图片视频背景不生效问题\n5. PS FX 面板与图层面板瘦身，新增透明度/字间距/行距/曲线等特效",
+  "force": false
+}
