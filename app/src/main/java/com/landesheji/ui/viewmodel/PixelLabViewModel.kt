@@ -9,6 +9,7 @@ import com.landesheji.data.db.ProjectRepository
 import com.landesheji.data.db.ProjectSerializer
 import com.landesheji.data.model.BackgroundType
 import com.landesheji.data.model.CanvasConfig
+import com.landesheji.data.model.DrawPoint
 import com.landesheji.data.model.DrawStroke
 import com.landesheji.data.model.ImageLayerProperties
 import com.landesheji.data.model.LayerItem
@@ -120,6 +121,30 @@ class PixelLabViewModel(application: Application) : AndroidViewModel(application
 
     private val _zoomOffset = MutableStateFlow(Pair(0f, 0f))
     val zoomOffset: StateFlow<Pair<Float, Float>> = _zoomOffset.asStateFlow()
+
+    // v2.2：自由画笔模式（直接在画布上绘制涂鸦）
+    private val _isDrawMode = MutableStateFlow(false)
+    val isDrawMode: StateFlow<Boolean> = _isDrawMode.asStateFlow()
+
+    // v2.2：画笔设置（当前颜色/粗细/橡皮擦）
+    private val _drawColorArgb = MutableStateFlow(0xFFFF5252.toInt())
+    val drawColorArgb: StateFlow<Int> = _drawColorArgb.asStateFlow()
+    private val _drawStrokeWidth = MutableStateFlow(10f)
+    val drawStrokeWidth: StateFlow<Float> = _drawStrokeWidth.asStateFlow()
+    private val _drawIsEraser = MutableStateFlow(false)
+    val drawIsEraser: StateFlow<Boolean> = _drawIsEraser.asStateFlow()
+
+    fun toggleDrawMode() {
+        _isDrawMode.value = !_isDrawMode.value
+    }
+
+    fun setDrawMode(on: Boolean) {
+        _isDrawMode.value = on
+    }
+
+    fun setDrawColor(argb: Int) { _drawColorArgb.value = argb }
+    fun setDrawStrokeWidth(w: Float) { _drawStrokeWidth.value = w }
+    fun setDrawIsEraser(on: Boolean) { _drawIsEraser.value = on }
 
     // 需求1：软件 UI 主题背景（图片/视频应用到整个 App 界面，而非画布）
     private val _uiBackgroundImageUri = MutableStateFlow("")
@@ -346,7 +371,9 @@ class PixelLabViewModel(application: Application) : AndroidViewModel(application
             type = LayerType.STICKER,
             stickerProps = StickerProperties(
                 stickerId = sticker.id,
-                stickerName = sticker.emojiOrIcon
+                stickerName = sticker.emojiOrIcon,
+                hasTint = sticker.hasTint,
+                tintArgb = sticker.tintArgb
             )
         )
         _layers.value = _layers.value + newLayer
@@ -407,6 +434,18 @@ class PixelLabViewModel(application: Application) : AndroidViewModel(application
         _layers.value = _layers.value + newLayer
         _selectedLayerId.value = newLayer.id
         _activeTab.value = BottomTab.SHAPES
+    }
+
+    // v2.2：自由画笔 —— 画布上直接绘制，一笔提交为一个涂鸦图层
+    fun addCanvasDrawStroke(points: List<DrawPoint>) {
+        if (points.size < 2) return
+        val stroke = DrawStroke(
+            points = points,
+            colorArgb = _drawColorArgb.value,
+            strokeWidth = _drawStrokeWidth.value,
+            isEraser = _drawIsEraser.value
+        )
+        addDrawLayer(listOf(stroke))
     }
 
     // Layer modification

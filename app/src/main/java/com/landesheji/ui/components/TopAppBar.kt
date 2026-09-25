@@ -73,9 +73,6 @@ fun PixelLabTopAppBar(
     onStartDraw: () -> Unit,
     onUploadBackgroundImage: () -> Unit,
     onUploadBackgroundVideo: () -> Unit,
-    onToggleBlurBackground: () -> Unit,
-    onToggleNeonBackground: () -> Unit,
-    onToggleInvertBackground: () -> Unit,
     onSaveProject: () -> Unit,
     onSaveImage: () -> Unit,
     onShare: () -> Unit,
@@ -90,6 +87,8 @@ fun PixelLabTopAppBar(
     onOpenCanvasSize: () -> Unit,
     onClearCanvas: () -> Unit,
     onShowAbout: () -> Unit,
+    onShowSettings: () -> Unit,
+    onToggleCanvasDraw: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showAddMenu by remember { mutableStateOf(false) }
@@ -178,6 +177,14 @@ fun PixelLabTopAppBar(
                             onStartDraw()
                         }
                     )
+                    // v2.2：画布直接绘制入口
+                    DropdownMenuItem(
+                        text = { Text("🖌️ 画布直接绘制", color = KawaiiSkyBlue, fontWeight = FontWeight.Bold) },
+                        onClick = {
+                            showAddMenu = false
+                            onToggleCanvasDraw()
+                        }
+                    )
                     // 需求6：划分分组：全局背景
                     HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.3f), thickness = 0.5.dp)
                     DropdownMenuItem(
@@ -192,28 +199,6 @@ fun PixelLabTopAppBar(
                         onClick = {
                             showAddMenu = false
                             onUploadBackgroundVideo()
-                        }
-                    )
-                    HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.3f), thickness = 0.5.dp)
-                    DropdownMenuItem(
-                        text = { Text("🪟 一键毛玻璃背景", fontWeight = FontWeight.Bold) },
-                        onClick = {
-                            showAddMenu = false
-                            onToggleBlurBackground()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("✨ 一键霓虹光晕背景", fontWeight = FontWeight.Bold) },
-                        onClick = {
-                            showAddMenu = false
-                            onToggleNeonBackground()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("🔄 一键反色背景", fontWeight = FontWeight.Bold) },
-                        onClick = {
-                            showAddMenu = false
-                            onToggleInvertBackground()
                         }
                     )
                     HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.3f), thickness = 0.5.dp)
@@ -471,6 +456,13 @@ fun PixelLabTopAppBar(
                         onClick = {
                             showOverflowMenu = false
                             onShowAbout()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("⚙️ 设置中心", color = KawaiiPink, fontWeight = FontWeight.Bold) },
+                        onClick = {
+                            showOverflowMenu = false
+                            onShowSettings()
                         }
                     )
                 }

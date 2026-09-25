@@ -6,7 +6,10 @@ data class StickerItem(
     val emojiOrIcon: String,
     val category: String,
     // 需求6：自定义导入的本地贴纸（图片 URI，非空时作为图片贴纸渲染）
-    val imageUri: String = ""
+    val imageUri: String = "",
+    // v2.2：贴纸染色（选择颜色后整体染色）
+    val hasTint: Boolean = false,
+    val tintArgb: Int = 0xFFFFFFFF.toInt()
 )
 
 object StickersData {

@@ -26,6 +26,7 @@ import com.landesheji.data.model.ShapeType
 import com.landesheji.data.model.TextAlignment
 import com.landesheji.ui.dialogs.ExportFormat
 import com.landesheji.ui.dialogs.ExportQuality
+import com.landesheji.util.TemplateEffectsRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -106,6 +107,32 @@ object BitmapExporter {
             when (layer.type) {
                 LayerType.TEXT -> {
                     val p = layer.textProps
+
+                    // v2.2：模板特效文字导出 —— 与画布预览同一套本地渲染器（修复模板保存特效丢失/白底）
+                    if (p.templateEffect.isNotEmpty()) {
+                        try {
+                            val params = org.json.JSONObject(
+                                if (p.templateEffectParamsJson.isBlank()) "{}" else p.templateEffectParamsJson
+                            )
+                            TemplateEffectsRenderer.drawEffect(
+                                canvas = canvas,
+                                text = p.text,
+                                fontSizePx = p.fontSize * previewScale,
+                                effect = p.templateEffect,
+                                params = params,
+                                x = 0f,
+                                y = 0f,
+                                fontFamily = p.fontStyleName.ifBlank { "sans-serif" },
+                                fontWeight = if (p.isBold) "bold" else "normal",
+                                opacity = layer.opacity,
+                                maxWidth = width * 2.5f
+                            )
+                        } catch (_: Exception) {
+                        }
+                        canvas.restore()
+                        return@forEach
+                    }
+
                     val baseFontSize = p.fontSize * 1.5f
                     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         textSize = baseFontSize
@@ -301,18 +328,91 @@ object BitmapExporter {
                         }
                     }
 
-                    // Stroke
-                    if (p.hasStroke) {
-                        val strokePaint = Paint(paint).apply {
-                            style = Paint.Style.STROKE
-                            strokeWidth = p.strokeWidth * 2f * previewScale
-                            color = p.strokeColorArgb
-                            alpha = (androidx.compose.ui.graphics.Color(p.strokeColorArgb).alpha * layer.opacity * 255).toInt()
+                    // v2.2：投影（随 fill 一起绘制，保持透明度正确）+ 扩展
+                    if (p.hasShadow) {
+                        val spread = p.shadowSpread.coerceIn(0f, 100f)
+                        val spreadOffset = p.shadowRadius * (spread / 100f) * 0.6f * previewScale
+                        if (spread > 5f) {
+                            val spreadPaint = Paint(paint).apply {
+                                style = Paint.Style.FILL
+                                color = p.colorArgb
+                                alpha = 255
+                                clearShadowLayer()
+                                setShadowLayer(p.shadowRadius * (1f + spread / 80f) * previewScale, p.shadowDx * previewScale, p.shadowDy * previewScale, p.shadowColorArgb)
+                            }
+                            var sY = curY
+                            for (line in lines) { canvas.drawText(line, 0f, sY, spreadPaint); sY += lineHeight }
+                        }
+                        paint.setShadowLayer(p.shadowRadius * previewScale, (p.shadowDx + spreadOffset) * previewScale, (p.shadowDy + spreadOffset) * previewScale, p.shadowColorArgb)
+                    } else {
+                        paint.clearShadowLayer()
+                    }
+
+                    // v2.2：外发光（带强度）
+                    if (p.hasGlow) {
+                        val glowAlphaMul = (p.glowOpacity * layer.opacity).coerceIn(0f, 1f)
+                        val glowPaint = Paint(paint).apply {
+                            style = Paint.Style.FILL
+                            color = p.glowColorArgb
+                            alpha = (glowAlphaMul * 255).toInt()
+                            clearShadowLayer()
+                            maskFilter = android.graphics.BlurMaskFilter(p.glowRadius * 0.8f * previewScale, android.graphics.BlurMaskFilter.Blur.NORMAL)
                         }
                         var sY = curY
-                        for (line in lines) {
-                            canvas.drawText(line, 0f, sY, strokePaint)
-                            sY += lineHeight
+                        for (line in lines) { canvas.drawText(line, 0f, sY, glowPaint); sY += lineHeight }
+                        val glowPaint2 = Paint(glowPaint).apply {
+                            alpha = (150 * glowAlphaMul).toInt().coerceIn(0, 255)
+                            maskFilter = android.graphics.BlurMaskFilter(p.glowRadius * 1.6f * previewScale, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                        }
+                        sY = curY
+                        for (line in lines) { canvas.drawText(line, 0f, sY, glowPaint2); sY += lineHeight }
+                    }
+
+                    // Stroke（v2.2：内/居中/外三种位置）
+                    if (p.hasStroke) {
+                        val strokeW = p.strokeWidth * 2f * previewScale
+                        if (p.strokePosition == com.landesheji.data.model.StrokePosition.INNER) {
+                            // 内描边：mask + SRC_IN
+                            val bounds = android.graphics.RectF(
+                                -baseFontSize * 1.6f * previewScale, curY - baseFontSize * previewScale,
+                                baseFontSize * 1.6f * previewScale, curY + totalH + baseFontSize * previewScale
+                            )
+                            canvas.saveLayer(bounds, null)
+                            val maskPaint = Paint(paint).apply {
+                                style = Paint.Style.FILL; color = Color.WHITE; alpha = 255
+                                clearShadowLayer(); shader = null; xfermode = null
+                            }
+                            var mY = curY
+                            for (line in lines) { canvas.drawText(line, 0f, mY, maskPaint); mY += lineHeight }
+                            val innerStrokePaint = Paint(paint).apply {
+                                style = Paint.Style.STROKE; strokeWidth = strokeW; color = p.strokeColorArgb
+                                alpha = (androidx.compose.ui.graphics.Color(p.strokeColorArgb).alpha * layer.opacity * 255).toInt()
+                                clearShadowLayer()
+                                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                            }
+                            var iY = curY
+                            for (line in lines) { canvas.drawText(line, 0f, iY, innerStrokePaint); iY += lineHeight }
+                            canvas.restore()
+                        } else if (p.strokePosition == com.landesheji.data.model.StrokePosition.CENTER) {
+                            val centerStrokePaint = Paint(paint).apply {
+                                style = Paint.Style.STROKE; strokeWidth = strokeW; color = p.strokeColorArgb
+                                alpha = (androidx.compose.ui.graphics.Color(p.strokeColorArgb).alpha * layer.opacity * 255).toInt()
+                                clearShadowLayer()
+                            }
+                            var sY = curY
+                            for (line in lines) { canvas.drawText(line, 0f, sY, centerStrokePaint); sY += lineHeight }
+                        } else {
+                            val strokePaint = Paint(paint).apply {
+                                style = Paint.Style.STROKE
+                                strokeWidth = strokeW
+                                color = p.strokeColorArgb
+                                alpha = (androidx.compose.ui.graphics.Color(p.strokeColorArgb).alpha * layer.opacity * 255).toInt()
+                            }
+                            var sY = curY
+                            for (line in lines) {
+                                canvas.drawText(line, 0f, sY, strokePaint)
+                                sY += lineHeight
+                            }
                         }
                     }
 
@@ -320,6 +420,57 @@ object BitmapExporter {
                     for (line in lines) {
                         canvas.drawText(line, 0f, curY, paint)
                         curY += lineHeight
+                    }
+                    paint.clearShadowLayer()
+
+                    // v2.2：内阴影/内发光/颜色叠加（mask + SRC_IN）
+                    if (p.hasInnerShadow || p.hasInnerGlow || p.hasColorOverlay) {
+                        val bounds = android.graphics.RectF(
+                            -baseFontSize * 1.6f * previewScale, curY - baseFontSize * previewScale * 2,
+                            baseFontSize * 1.6f * previewScale, curY + totalH + baseFontSize * previewScale
+                        )
+                        canvas.saveLayer(bounds, null)
+                        val maskPaint = Paint(paint).apply {
+                            style = Paint.Style.FILL; color = Color.WHITE; alpha = 255
+                            clearShadowLayer(); shader = null; xfermode = null
+                        }
+                        var mY = curY - totalH
+                        for (line in lines) { canvas.drawText(line, 0f, mY, maskPaint); mY += lineHeight }
+                        if (p.hasInnerShadow) {
+                            val isp = Paint(paint).apply {
+                                style = Paint.Style.FILL; color = p.innerShadowColorArgb
+                                alpha = (p.innerShadowOpacity * 255).toInt().coerceIn(0, 255)
+                                clearShadowLayer()
+                                maskFilter = android.graphics.BlurMaskFilter(p.innerShadowRadius * previewScale, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                                shader = null
+                                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                            }
+                            var iY = curY - totalH + p.innerShadowDy * previewScale
+                            for (line in lines) { canvas.drawText(line, p.innerShadowDx * previewScale, iY, isp); iY += lineHeight }
+                        }
+                        if (p.hasInnerGlow) {
+                            val igp = Paint(paint).apply {
+                                style = Paint.Style.FILL; color = p.innerGlowColorArgb
+                                alpha = (p.innerGlowOpacity * 255).toInt().coerceIn(0, 255)
+                                clearShadowLayer()
+                                maskFilter = android.graphics.BlurMaskFilter(p.innerGlowRadius * previewScale, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                                shader = null
+                                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                            }
+                            var gY = curY - totalH
+                            for (line in lines) { canvas.drawText(line, 0f, gY, igp); gY += lineHeight }
+                        }
+                        if (p.hasColorOverlay) {
+                            val cop = Paint(paint).apply {
+                                style = Paint.Style.FILL; color = p.colorOverlayColorArgb
+                                alpha = (p.colorOverlayOpacity * 255).toInt().coerceIn(0, 255)
+                                clearShadowLayer(); shader = null
+                                xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                            }
+                            var cY = curY - totalH
+                            for (line in lines) { canvas.drawText(line, 0f, cY, cop); cY += lineHeight }
+                        }
+                        canvas.restore()
                     }
 
                     // 5. PS 3D Material Glare

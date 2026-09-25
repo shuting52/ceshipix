@@ -502,36 +502,104 @@ object CanvasRenderer {
                 }
             }
 
-            // Drop Shadow
+            // Drop Shadow（v2.2：支持扩展范围 shadowSpread）
             if (props.hasShadow) {
+                val spread = props.shadowSpread.coerceIn(0f, 100f)
+                val spreadOffset = props.shadowRadius * (spread / 100f) * 0.6f
+                // 扩展层：先画一层更柔和的外圈阴影（随后主 fill 覆盖中心）
+                if (spread > 5f) {
+                    val spreadPaint = Paint(paint).apply {
+                        style = Paint.Style.FILL
+                        color = props.colorArgb
+                        alpha = 255
+                        clearShadowLayer()
+                        setShadowLayer(
+                            props.shadowRadius * (1f + spread / 80f),
+                            props.shadowDx,
+                            props.shadowDy,
+                            props.shadowColorArgb
+                        )
+                    }
+                    var curY = startY
+                    for (line in lines) { native.drawText(line, 0f, curY, spreadPaint); curY += lineHeight }
+                }
+                // 主阴影：设置在 paint 上，随 fill 一起绘制（保持透明度正确）
                 paint.setShadowLayer(
                     props.shadowRadius,
-                    props.shadowDx,
-                    props.shadowDy,
+                    props.shadowDx + spreadOffset,
+                    props.shadowDy + spreadOffset,
                     props.shadowColorArgb
                 )
             } else {
                 paint.clearShadowLayer()
             }
 
-            // Text Stroke (Outer Border)
+            // Text Stroke（v2.2：支持内/居中/外三种位置，类似 PS 描边位置）
             if (props.hasStroke) {
-                val strokePaint = Paint(paint).apply {
-                    style = Paint.Style.STROKE
-                    strokeWidth = props.strokeWidth * 2f
-                    color = props.strokeColorArgb
-                    alpha = ((Color(props.strokeColorArgb).alpha * opacity) * 255).toInt()
-                    clearShadowLayer()
-                }
-                var curY = startY
-                for (line in lines) {
-                    native.drawText(line, 0f, curY, strokePaint)
-                    curY += lineHeight
+                val strokeW = props.strokeWidth * 2f
+                if (props.strokePosition == com.landesheji.data.model.StrokePosition.INNER) {
+                    // 内描边：先用 fill 作 mask，再用 SRC_IN 把描边限制在文字内部
+                    val bounds = android.graphics.RectF(
+                        -baseFontSize * 1.5f, startY - baseFontSize,
+                        baseFontSize * 1.5f, startY + totalHeight + baseFontSize
+                    )
+                    native.saveLayer(bounds, null, android.graphics.Canvas.ALL_SAVE_FLAG)
+                    // mask：纯白 fill
+                    val maskPaint = Paint(paint).apply {
+                        style = Paint.Style.FILL
+                        color = android.graphics.Color.WHITE
+                        alpha = 255
+                        clearShadowLayer()
+                        shader = null
+                    }
+                    var curY = startY
+                    for (line in lines) { native.drawText(line, 0f, curY, maskPaint); curY += lineHeight }
+                    // SRC_IN 内描边
+                    val innerStrokePaint = Paint(paint).apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = strokeW
+                        color = props.strokeColorArgb
+                        alpha = ((Color(props.strokeColorArgb).alpha * opacity) * 255).toInt()
+                        clearShadowLayer()
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    curY = startY
+                    for (line in lines) { native.drawText(line, 0f, curY, innerStrokePaint); curY += lineHeight }
+                    native.restore()
+                } else if (props.strokePosition == com.landesheji.data.model.StrokePosition.CENTER) {
+                    // 居中描边：先 fill 再 stroke（一半在内一半在外）
+                    val centerStrokePaint = Paint(paint).apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = strokeW
+                        color = props.strokeColorArgb
+                        alpha = ((Color(props.strokeColorArgb).alpha * opacity) * 255).toInt()
+                        clearShadowLayer()
+                    }
+                    var curY = startY
+                    for (line in lines) {
+                        native.drawText(line, 0f, curY, centerStrokePaint)
+                        curY += lineHeight
+                    }
+                } else {
+                    // 外描边：先描边后填充（现有逻辑）
+                    val strokePaint = Paint(paint).apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = strokeW
+                        color = props.strokeColorArgb
+                        alpha = ((Color(props.strokeColorArgb).alpha * opacity) * 255).toInt()
+                        clearShadowLayer()
+                    }
+                    var curY = startY
+                    for (line in lines) {
+                        native.drawText(line, 0f, curY, strokePaint)
+                        curY += lineHeight
+                    }
                 }
             }
 
-            // PS FX：外发光 (Glow) —— 在文字下方叠多层模糊光晕
+            // PS FX：外发光 (Glow) —— 在文字下方叠多层模糊光晕（v2.2：支持强度 glowOpacity）
             if (props.hasGlow) {
+                val glowAlphaMul = (props.glowOpacity * opacity).coerceIn(0f, 1f)
                 val glowPaint = Paint(paint).apply {
                     style = Paint.Style.FILL
                     color = props.glowColorArgb
@@ -540,6 +608,7 @@ object CanvasRenderer {
                         props.glowRadius * 0.8f,
                         android.graphics.BlurMaskFilter.Blur.NORMAL
                     )
+                    alpha = (glowAlphaMul * 255).toInt()
                 }
                 var curY = startY
                 for (line in lines) {
@@ -548,7 +617,7 @@ object CanvasRenderer {
                 }
                 // 更强光晕第二层
                 val glowPaint2 = Paint(glowPaint).apply {
-                    alpha = (150 * opacity).toInt().coerceIn(0, 255)
+                    alpha = (150 * glowAlphaMul).toInt().coerceIn(0, 255)
                     maskFilter = android.graphics.BlurMaskFilter(
                         props.glowRadius * 1.6f,
                         android.graphics.BlurMaskFilter.Blur.NORMAL
@@ -593,6 +662,80 @@ object CanvasRenderer {
                 curY += lineHeight
             }
             paint.shader = null
+
+            // ===== v2.2：PS 图层样式增强（内阴影/内发光/颜色叠加，用 mask+SRC_IN 实现） =====
+            val textBounds = android.graphics.RectF(
+                -baseFontSize * 1.6f, startY - baseFontSize,
+                baseFontSize * 1.6f, startY + totalHeight + baseFontSize
+            )
+            if (props.hasInnerShadow || props.hasInnerGlow || props.hasColorOverlay) {
+                native.saveLayer(textBounds, null, android.graphics.Canvas.ALL_SAVE_FLAG)
+                // 文字本体作 mask（纯白填充）
+                val maskPaint = Paint(paint).apply {
+                    style = Paint.Style.FILL
+                    color = android.graphics.Color.WHITE
+                    alpha = 255
+                    clearShadowLayer()
+                    shader = null
+                    xfermode = null
+                }
+                var mY = startY
+                for (line in lines) { native.drawText(line, 0f, mY, maskPaint); mY += lineHeight }
+
+                // 内阴影：偏移 + 模糊，SRC_IN 只显示在文字内部
+                if (props.hasInnerShadow) {
+                    val isp = Paint(paint).apply {
+                        style = Paint.Style.FILL
+                        color = props.innerShadowColorArgb
+                        alpha = (props.innerShadowOpacity * 255).toInt().coerceIn(0, 255)
+                        clearShadowLayer()
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            props.innerShadowRadius,
+                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                        shader = null
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    var iY = startY + props.innerShadowDy
+                    for (line in lines) {
+                        native.drawText(line, props.innerShadowDx, iY, isp)
+                        iY += lineHeight
+                    }
+                }
+
+                // 内发光：模糊亮色，SRC_IN 只显示在文字内部边缘
+                if (props.hasInnerGlow) {
+                    val igp = Paint(paint).apply {
+                        style = Paint.Style.FILL
+                        color = props.innerGlowColorArgb
+                        alpha = (props.innerGlowOpacity * 255).toInt().coerceIn(0, 255)
+                        clearShadowLayer()
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            props.innerGlowRadius,
+                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                        shader = null
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    var gY = startY
+                    for (line in lines) { native.drawText(line, 0f, gY, igp); gY += lineHeight }
+                }
+
+                // 颜色叠加：纯色覆盖（SRC_IN 限制在文字内）
+                if (props.hasColorOverlay) {
+                    val cop = Paint(paint).apply {
+                        style = Paint.Style.FILL
+                        color = props.colorOverlayColorArgb
+                        alpha = (props.colorOverlayOpacity * 255).toInt().coerceIn(0, 255)
+                        clearShadowLayer()
+                        shader = null
+                        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+                    }
+                    var cY = startY
+                    for (line in lines) { native.drawText(line, 0f, cY, cop); cY += lineHeight }
+                }
+                native.restore()
+            }
 
             // 5. PS 3D 材质质感效果 (Surface Material Shaders)
             when (props.material3D) {
@@ -923,6 +1066,13 @@ object CanvasRenderer {
                 textSize = 90f
                 textAlign = Paint.Align.CENTER
                 alpha = (opacity * 255).toInt()
+                // v2.2：贴纸染色
+                if (layer.stickerProps.hasTint) {
+                    colorFilter = android.graphics.PorterDuffColorFilter(
+                        layer.stickerProps.tintArgb,
+                        android.graphics.PorterDuff.Mode.SRC_IN
+                    )
+                }
             }
             val text = layer.stickerProps.stickerName
             val bounds = Rect()

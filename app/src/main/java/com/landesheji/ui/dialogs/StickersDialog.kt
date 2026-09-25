@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -33,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
@@ -61,6 +64,9 @@ fun StickersDialog(
     onImportSticker: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf(StickersData.categories.first()) }
+    // v2.2：贴纸染色
+    var selectedTintArgb by remember { mutableStateOf(0xFFFFFFFF.toInt()) }
+    var tintEnabled by remember { mutableStateOf(false) }
     // 需求6："我的贴纸"分类只有用户导入过才加入分类列表
     val allCategories = if (customStickers.isNotEmpty()) {
         StickersData.categories + "我的贴纸"
@@ -167,6 +173,57 @@ fun StickersDialog(
 
                 HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.1f))
 
+                // v2.2：贴纸染色（给贴纸上颜色）
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("贴纸颜色：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = KawaiiTextSecondary)
+                    val tintColors = listOf(
+                        0xFFFFFFFF.toInt() to "原色",
+                        0xFFFF5252.toInt() to "红",
+                        0xFFFF9F1C.toInt() to "橙",
+                        0xFFFFD166.toInt() to "黄",
+                        0xFF06D6A0.toInt() to "绿",
+                        0xFF118AB2.toInt() to "蓝",
+                        0xFF8338EC.toInt() to "紫",
+                        0xFF2A2A38.toInt() to "黑"
+                    )
+                    tintColors.forEach { (argb, label) ->
+                        val isSel = tintEnabled && selectedTintArgb == argb
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 3.dp)
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(Color(argb))
+                                .border(
+                                    width = if (isSel) 3.dp else 1.dp,
+                                    color = if (isSel) KawaiiPink else KawaiiOutline.copy(alpha = 0.3f),
+                                    shape = CircleShape
+                                )
+                                .jellyClickable {
+                                    if (argb == 0xFFFFFFFF.toInt()) {
+                                        tintEnabled = false
+                                    } else {
+                                        tintEnabled = true
+                                        selectedTintArgb = argb
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (argb == 0xFFFFFFFF.toInt()) {
+                                Text(text = "✕", fontSize = 10.sp, fontWeight = FontWeight.Black, color = KawaiiTextSecondary)
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.1f))
+
                 // Stickers Grid
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
@@ -184,7 +241,10 @@ fun StickersDialog(
                                 .background(KawaiiCardTint)
                                 .border(1.dp, KawaiiOutline.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
                                 .jellyClickable {
-                                    onSelectSticker(sticker)
+                                    onSelectSticker(
+                                        if (tintEnabled) sticker.copy(hasTint = true, tintArgb = selectedTintArgb)
+                                        else sticker.copy(hasTint = false)
+                                    )
                                     onDismiss()
                                 }
                                 .padding(8.dp),

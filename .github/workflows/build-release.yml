@@ -64,9 +64,9 @@ jobs:
       - name: Prepare release asset names
         run: |
           # 与 backend/update.json 的 apkUrl 保持一致：
-          # https://github.com/shuting52/ceshipix/releases/latest/download/PixelLab-v2.1.apk
-          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/PixelLab-v2.1.apk
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/PixelLab-v2.1-debug.apk
+          # https://github.com/shuting52/ceshipix/releases/latest/download/PixelLab-v2.2.apk
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/PixelLab-v2.2.apk
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/PixelLab-v2.2-debug.apk
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -92,7 +92,7 @@ jobs:
 
             > 发布说明请在此补充。更新包在 App 内「关于 → 检查更新」即可收到。
           files: |
-            app/build/outputs/apk/release/PixelLab-v2.1.apk
-            app/build/outputs/apk/debug/PixelLab-v2.1-debug.apk
+            app/build/outputs/apk/release/PixelLab-v2.2.apk
+            app/build/outputs/apk/debug/PixelLab-v2.2-debug.apk
 
       # update.json 的 apkUrl 指向上面的固定文件名，release 资产创建后即可自动生效

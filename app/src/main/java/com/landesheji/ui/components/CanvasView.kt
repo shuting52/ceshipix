@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.landesheji.data.model.CanvasConfig
+import com.landesheji.data.model.DrawPoint
 import com.landesheji.data.model.LayerItem
 import com.landesheji.data.model.LayerType
 import com.landesheji.ui.theme.KawaiiBg
@@ -101,6 +102,12 @@ fun CanvasView(
     onUpdateZoom: (scaleChange: Float, panChangeX: Float, panChangeY: Float) -> Unit,
     onResetZoom: () -> Unit,
     onCanvasDisplayWidth: (Float) -> Unit = {},
+    // v2.2：自由画笔模式
+    isDrawMode: Boolean = false,
+    drawColorArgb: Int = 0xFFFF5252.toInt(),
+    drawStrokeWidth: Float = 10f,
+    drawIsEraser: Boolean = false,
+    onDrawStroke: (List<DrawPoint>) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val selectedLayer = layers.find { it.id == selectedLayerId }
@@ -133,6 +140,9 @@ fun CanvasView(
 
     var snapActiveX by remember { mutableStateOf(false) }
     var snapActiveY by remember { mutableStateOf(false) }
+
+    // v2.2：自由画笔模式 —— 正在绘制的笔迹点（相对画布中心）
+    var drawingPoints by remember { mutableStateOf<List<DrawPoint>>(emptyList()) }
 
     val density = LocalDensity.current
 
@@ -224,6 +234,31 @@ fun CanvasView(
                             }
                         )
                     }
+                }
+                // v2.2：自由画笔模式 —— 直接在画布上绘制涂鸦
+                .pointerInput(isDrawMode, drawColorArgb, drawStrokeWidth, drawIsEraser) {
+                    if (isDrawMode) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val p = DrawPoint(offset.x - fittedWPx / 2f, offset.y - fittedHPx / 2f)
+                                drawingPoints = listOf(p)
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                val p = DrawPoint(change.position.x - fittedWPx / 2f, change.position.y - fittedHPx / 2f)
+                                drawingPoints = drawingPoints + p
+                            },
+                            onDragEnd = {
+                                if (drawingPoints.size >= 2) {
+                                    onDrawStroke(drawingPoints)
+                                }
+                                drawingPoints = emptyList()
+                            },
+                            onDragCancel = {
+                                drawingPoints = emptyList()
+                            }
+                        )
+                    }
                 },
             contentAlignment = Alignment.TopStart
         ) {
@@ -249,6 +284,26 @@ fun CanvasView(
                     // 2. Draw all layers in order (需求6：传入本地图片位图缓存)
                     layers.forEach { layer ->
                         CanvasRenderer.drawLayer(this, layer, canvasCenter, imageBitmaps)
+                    }
+
+                    // v2.2：自由画笔 —— 实时预览正在绘制的笔迹
+                    if (drawingPoints.size >= 2) {
+                        val strokeColor = if (drawIsEraser) Color.White.copy(alpha = 0.92f) else Color(drawColorArgb)
+                        val path = androidx.compose.ui.graphics.Path()
+                        drawingPoints.forEachIndexed { idx, pt ->
+                            val px = canvasCenter.x + pt.x
+                            val py = canvasCenter.y + pt.y
+                            if (idx == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                        }
+                        drawPath(
+                            path = path,
+                            color = strokeColor,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = drawStrokeWidth.coerceIn(2f, 40f),
+                                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                join = androidx.compose.ui.graphics.StrokeJoin.Round
+                            )
+                        )
                     }
 
                     // 3. Draw Grid if enabled
@@ -323,6 +378,7 @@ fun CanvasView(
                         layer = layer,
                         isSelected = isSelected,
                         isZoomMode = isZoomMode,
+                        isDrawMode = isDrawMode,
                         canvasCenterPx = canvasCenterPx,
                         onSelect = { onSelectLayer(layer.id) },
                         onMove = { dx, dy ->
@@ -394,6 +450,7 @@ private fun LayerTouchOverlay(
     layer: LayerItem,
     isSelected: Boolean,
     isZoomMode: Boolean,
+    isDrawMode: Boolean = false,
     canvasCenterPx: Offset,
     onSelect: () -> Unit,
     onMove: (dx: Float, dy: Float) -> Unit,
@@ -406,7 +463,7 @@ private fun LayerTouchOverlay(
     onScaleLayer: (factor: Float) -> Unit,
     onResetTransform: () -> Unit
 ) {
-    if (!layer.isVisible || isZoomMode) return
+    if (!layer.isVisible || isZoomMode || isDrawMode) return
 
     val density = LocalDensity.current
 
@@ -507,7 +564,9 @@ private fun LayerTouchOverlay(
                 )
             }
     ) {
-        if (isSelected && !layer.isLocked) {
+        // v2.2：文字图层不显示四边功能按钮（删除/旋转/编辑/缩放），改为双击文字直接编辑；
+        // 其他图层（形状/贴纸/图片/涂鸦）保留四角手柄方便操作
+        if (isSelected && !layer.isLocked && layer.type != LayerType.TEXT) {
             // Kawaii Cute Cartoon Anime Selection Outline
             Box(
                 modifier = Modifier

@@ -276,6 +276,7 @@ private fun FxLightingSection(
     }
     if (props.hasGlow) {
         FxSlider("发光半径", "${props.glowRadius.toInt()} px", props.glowRadius, 4f..60f) { v -> onUpdateProps { it.copy(glowRadius = v) } }
+        FxSlider("发光强度", "%.0f%%".format(props.glowOpacity * 100), props.glowOpacity, 0.1f..1f) { v -> onUpdateProps { it.copy(glowOpacity = v) } }
         FxColorPickRow("发光颜色", props.glowColorArgb) { c -> onUpdateProps { it.copy(glowColorArgb = c) } }
     }
 
@@ -287,6 +288,8 @@ private fun FxLightingSection(
     }
     if (props.hasShadow) {
         FxSlider("阴影半径", "${props.shadowRadius.toInt()} px", props.shadowRadius, 2f..40f) { v -> onUpdateProps { it.copy(shadowRadius = v) } }
+        // v2.2：阴影扩展
+        FxSlider("阴影扩展", "${props.shadowSpread.toInt()}", props.shadowSpread, 0f..100f) { v -> onUpdateProps { it.copy(shadowSpread = v) } }
         FxSlider("阴影 X 偏移", "${props.shadowDx.toInt()} px", props.shadowDx, -20f..20f) { v -> onUpdateProps { it.copy(shadowDx = v) } }
         FxSlider("阴影 Y 偏移", "${props.shadowDy.toInt()} px", props.shadowDy, -20f..20f) { v -> onUpdateProps { it.copy(shadowDy = v) } }
         FxColorPickRow("阴影颜色", props.shadowColorArgb) { c -> onUpdateProps { it.copy(shadowColorArgb = c) } }
@@ -405,6 +408,98 @@ private fun FxAdvancedSection(
     if (props.hasStroke) {
         FxSlider("描边粗细", "${props.strokeWidth.toInt()} px", props.strokeWidth, 1f..24f) { v -> onUpdateProps { it.copy(strokeWidth = v) } }
         FxColorPickRow("描边颜色", props.strokeColorArgb) { c -> onUpdateProps { it.copy(strokeColorArgb = c) } }
+        // v2.2：描边位置（内/居中/外）
+        Text("描边位置：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = KawaiiTextSecondary)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(
+                com.landesheji.data.model.StrokePosition.INNER to "内描边",
+                com.landesheji.data.model.StrokePosition.CENTER to "居中",
+                com.landesheji.data.model.StrokePosition.OUTER to "外描边"
+            ).forEach { (pos, label) ->
+                KawaiiChipFx(
+                    text = label,
+                    isSelected = props.strokePosition == pos,
+                    onClick = { onUpdateProps { it.copy(strokePosition = pos) } }
+                )
+            }
+        }
+    }
+
+    HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+
+    // v2.2：内阴影
+    FxSwitchRow("🌑 内阴影", checked = props.hasInnerShadow) { on ->
+        onUpdateProps { it.copy(hasInnerShadow = on) }
+    }
+    if (props.hasInnerShadow) {
+        FxSlider("模糊半径", "${props.innerShadowRadius.toInt()} px", props.innerShadowRadius, 1f..30f) { v -> onUpdateProps { it.copy(innerShadowRadius = v) } }
+        FxSlider("X 偏移", "${props.innerShadowDx.toInt()} px", props.innerShadowDx, -20f..20f) { v -> onUpdateProps { it.copy(innerShadowDx = v) } }
+        FxSlider("Y 偏移", "${props.innerShadowDy.toInt()} px", props.innerShadowDy, -20f..20f) { v -> onUpdateProps { it.copy(innerShadowDy = v) } }
+        FxSlider("不透明度", "%.0f%%".format(props.innerShadowOpacity * 100), props.innerShadowOpacity, 0.05f..1f) { v -> onUpdateProps { it.copy(innerShadowOpacity = v) } }
+        FxColorPickRow("阴影颜色", props.innerShadowColorArgb) { c -> onUpdateProps { it.copy(innerShadowColorArgb = c) } }
+    }
+
+    HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+
+    // v2.2：内发光
+    FxSwitchRow("🔥 内发光", checked = props.hasInnerGlow) { on ->
+        onUpdateProps { it.copy(hasInnerGlow = on) }
+    }
+    if (props.hasInnerGlow) {
+        FxSlider("发光半径", "${props.innerGlowRadius.toInt()} px", props.innerGlowRadius, 1f..40f) { v -> onUpdateProps { it.copy(innerGlowRadius = v) } }
+        FxSlider("不透明度", "%.0f%%".format(props.innerGlowOpacity * 100), props.innerGlowOpacity, 0.05f..1f) { v -> onUpdateProps { it.copy(innerGlowOpacity = v) } }
+        FxColorPickRow("发光颜色", props.innerGlowColorArgb) { c -> onUpdateProps { it.copy(innerGlowColorArgb = c) } }
+    }
+
+    HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+
+    // v2.2：颜色叠加
+    FxSwitchRow("🎨 颜色叠加", checked = props.hasColorOverlay) { on ->
+        onUpdateProps { it.copy(hasColorOverlay = on) }
+    }
+    if (props.hasColorOverlay) {
+        FxSlider("不透明度", "%.0f%%".format(props.colorOverlayOpacity * 100), props.colorOverlayOpacity, 0.05f..1f) { v -> onUpdateProps { it.copy(colorOverlayOpacity = v) } }
+        FxColorPickRow("叠加颜色", props.colorOverlayColorArgb) { c -> onUpdateProps { it.copy(colorOverlayColorArgb = c) } }
+    }
+
+    HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+
+    // v2.2：FX 预设
+    Text("⚡ FX 预设：", fontSize = 12.sp, fontWeight = FontWeight.Black, color = KawaiiTextPrimary)
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        KawaiiChipFx(text = "⚫ 黑描边", isSelected = false, onClick = {
+            onUpdateProps { it.copy(hasStroke = true, strokeColorArgb = 0xFF000000.toInt(), strokeWidth = 6f, strokePosition = com.landesheji.data.model.StrokePosition.OUTER, hasShadow = false, hasGlow = false, hasColorOverlay = false, hasInnerShadow = false, hasInnerGlow = false) }
+        })
+        KawaiiChipFx(text = "⚪ 白描边", isSelected = false, onClick = {
+            onUpdateProps { it.copy(hasStroke = true, strokeColorArgb = 0xFFFFFFFF.toInt(), strokeWidth = 6f, strokePosition = com.landesheji.data.model.StrokePosition.OUTER, hasShadow = false, hasGlow = false, hasColorOverlay = false, hasInnerShadow = false, hasInnerGlow = false) }
+        })
+        KawaiiChipFx(text = "💫 霓虹发光", isSelected = false, onClick = {
+            onUpdateProps { it.copy(hasGlow = true, glowColorArgb = 0xFF00D4FF.toInt(), glowRadius = 22f, glowOpacity = 0.9f, hasStroke = true, strokeColorArgb = 0xFFFFFFFF.toInt(), strokeWidth = 2f, hasShadow = true, shadowColorArgb = 0x8800D4FF.toInt(), shadowRadius = 10f, hasColorOverlay = false, hasInnerShadow = false, hasInnerGlow = false) }
+        })
+        KawaiiChipFx(text = "🥇 金属文字", isSelected = false, onClick = {
+            onUpdateProps { it.copy(hasColorOverlay = false, hasGradientOverlay = true, gradientOverlayColor2Argb = 0xFFFFD700.toInt(), hasStroke = true, strokeColorArgb = 0xFF713F08.toInt(), strokeWidth = 5f, hasInnerShadow = true, innerShadowColorArgb = 0x99330000.toInt(), innerShadowDy = 3f, hasGlow = false, material3D = "金属质感") }
+        })
+        KawaiiChipFx(text = "🧊 立体文字", isSelected = false, onClick = {
+            onUpdateProps { it.copy(has3D = true, depth3D = 18f, angle3D = 45f, darken3D = 0.55f, hasBevel = true, bevelWidth = 4f, hasGroundShadow = true, hasShadow = true, shadowRadius = 8f, hasColorOverlay = false, hasInnerShadow = false, hasInnerGlow = false) }
+        })
+        KawaiiChipFx(text = "🌑 长阴影", isSelected = false, onClick = {
+            onUpdateProps { it.copy(hasShadow = true, shadowColorArgb = 0x99000000.toInt(), shadowRadius = 6f, shadowDx = 0f, shadowDy = 14f, shadowSpread = 20f, hasStroke = false, hasGlow = false, hasInnerShadow = false, hasInnerGlow = false, hasColorOverlay = false) }
+        })
+    }
+
+    HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+
+    // v2.2：一键清除全部效果
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        KawaiiButtonFx("🗑️ 一键清除全部效果", onClick = {
+            onUpdateProps {
+                it.copy(
+                    hasStroke = false, hasShadow = false, hasGlow = false, has3D = false, hasBevel = false,
+                    hasEmboss = false, hasReflection = false, hasGroundShadow = false, hasTextureFill = false,
+                    hasGradientOverlay = false, hasInnerShadow = false, hasInnerGlow = false, hasColorOverlay = false
+                )
+            }
+        })
     }
 
     HorizontalDivider(color = KawaiiOutline.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))

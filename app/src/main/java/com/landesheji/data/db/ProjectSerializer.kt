@@ -10,6 +10,7 @@ import com.landesheji.data.model.LayerType
 import com.landesheji.data.model.ShapeProperties
 import com.landesheji.data.model.ShapeType
 import com.landesheji.data.model.StickerProperties
+import com.landesheji.data.model.StrokePosition
 import com.landesheji.data.model.TextAlignment
 import com.landesheji.data.model.TextProperties
 import org.json.JSONArray
@@ -115,11 +116,15 @@ object ProjectSerializer {
             textObj.put("hasStroke", layer.textProps.hasStroke)
             textObj.put("strokeColorArgb", layer.textProps.strokeColorArgb)
             textObj.put("strokeWidth", layer.textProps.strokeWidth.toDouble())
+            // v2.2：描边位置
+            textObj.put("strokePosition", layer.textProps.strokePosition.name)
             textObj.put("hasShadow", layer.textProps.hasShadow)
             textObj.put("shadowColorArgb", layer.textProps.shadowColorArgb)
             textObj.put("shadowRadius", layer.textProps.shadowRadius.toDouble())
             textObj.put("shadowDx", layer.textProps.shadowDx.toDouble())
             textObj.put("shadowDy", layer.textProps.shadowDy.toDouble())
+            // v2.2：阴影扩展
+            textObj.put("shadowSpread", layer.textProps.shadowSpread.toDouble())
             textObj.put("has3D", layer.textProps.has3D)
             textObj.put("depth3D", layer.textProps.depth3D.toDouble())
             textObj.put("angle3D", layer.textProps.angle3D.toDouble())
@@ -153,6 +158,8 @@ object ProjectSerializer {
             textObj.put("hasGlow", layer.textProps.hasGlow)
             textObj.put("glowColorArgb", layer.textProps.glowColorArgb)
             textObj.put("glowRadius", layer.textProps.glowRadius.toDouble())
+            // v2.2：外发光强度
+            textObj.put("glowOpacity", layer.textProps.glowOpacity.toDouble())
             textObj.put("hasTextureFill", layer.textProps.hasTextureFill)
             textObj.put("textureIndex", layer.textProps.textureIndex)
             textObj.put("textureColorArgb", layer.textProps.textureColorArgb)
@@ -162,6 +169,22 @@ object ProjectSerializer {
             // 需求重造3：模板特效字段（否则保存工程会丢效果）
             textObj.put("templateEffect", layer.textProps.templateEffect)
             textObj.put("templateEffectParamsJson", layer.textProps.templateEffectParamsJson)
+            // v2.2：PS 图层样式增强
+            textObj.put("strokePosition", layer.textProps.strokePosition.name)
+            textObj.put("shadowSpread", layer.textProps.shadowSpread.toDouble())
+            textObj.put("hasInnerShadow", layer.textProps.hasInnerShadow)
+            textObj.put("innerShadowColorArgb", layer.textProps.innerShadowColorArgb)
+            textObj.put("innerShadowRadius", layer.textProps.innerShadowRadius.toDouble())
+            textObj.put("innerShadowDx", layer.textProps.innerShadowDx.toDouble())
+            textObj.put("innerShadowDy", layer.textProps.innerShadowDy.toDouble())
+            textObj.put("innerShadowOpacity", layer.textProps.innerShadowOpacity.toDouble())
+            textObj.put("hasInnerGlow", layer.textProps.hasInnerGlow)
+            textObj.put("innerGlowColorArgb", layer.textProps.innerGlowColorArgb)
+            textObj.put("innerGlowRadius", layer.textProps.innerGlowRadius.toDouble())
+            textObj.put("innerGlowOpacity", layer.textProps.innerGlowOpacity.toDouble())
+            textObj.put("hasColorOverlay", layer.textProps.hasColorOverlay)
+            textObj.put("colorOverlayColorArgb", layer.textProps.colorOverlayColorArgb)
+            textObj.put("colorOverlayOpacity", layer.textProps.colorOverlayOpacity.toDouble())
             obj.put("textProps", textObj)
 
             // Shape
@@ -256,11 +279,15 @@ object ProjectSerializer {
                     hasStroke = textObj.optBoolean("hasStroke", false),
                     strokeColorArgb = textObj.optInt("strokeColorArgb", 0xFF000000.toInt()),
                     strokeWidth = textObj.optDouble("strokeWidth", 4.0).toFloat(),
+                    strokePosition = runCatching {
+                        StrokePosition.valueOf(textObj.optString("strokePosition", "OUTER"))
+                    }.getOrDefault(StrokePosition.OUTER),
                     hasShadow = textObj.optBoolean("hasShadow", false),
                     shadowColorArgb = textObj.optInt("shadowColorArgb", 0xAA000000.toInt()),
                     shadowRadius = textObj.optDouble("shadowRadius", 10.0).toFloat(),
                     shadowDx = textObj.optDouble("shadowDx", 4.0).toFloat(),
                     shadowDy = textObj.optDouble("shadowDy", 4.0).toFloat(),
+                    shadowSpread = textObj.optDouble("shadowSpread", 0.0).toFloat(),
                     has3D = textObj.optBoolean("has3D", false),
                     depth3D = textObj.optDouble("depth3D", 12.0).toFloat(),
                     angle3D = textObj.optDouble("angle3D", 45.0).toFloat(),
@@ -294,6 +321,7 @@ object ProjectSerializer {
                     hasGlow = textObj.optBoolean("hasGlow", false),
                     glowColorArgb = textObj.optInt("glowColorArgb", 0xFF00D4FF.toInt()),
                     glowRadius = textObj.optDouble("glowRadius", 18.0).toFloat(),
+                    glowOpacity = textObj.optDouble("glowOpacity", 0.8).toFloat(),
                     hasTextureFill = textObj.optBoolean("hasTextureFill", false),
                     textureIndex = textObj.optInt("textureIndex", 0),
                     textureColorArgb = textObj.optInt("textureColorArgb", 0xFFFFFFFF.toInt()),
@@ -302,7 +330,21 @@ object ProjectSerializer {
                     gradientOverlayAngle = textObj.optDouble("gradientOverlayAngle", 45.0).toFloat(),
                     // 需求重造3：模板特效字段
                     templateEffect = textObj.optString("templateEffect", ""),
-                    templateEffectParamsJson = textObj.optString("templateEffectParamsJson", "{}")
+                    templateEffectParamsJson = textObj.optString("templateEffectParamsJson", "{}"),
+                    // v2.2：PS 图层样式增强
+                    hasInnerShadow = textObj.optBoolean("hasInnerShadow", false),
+                    innerShadowColorArgb = textObj.optInt("innerShadowColorArgb", 0xCC000000.toInt()),
+                    innerShadowRadius = textObj.optDouble("innerShadowRadius", 8.0).toFloat(),
+                    innerShadowDx = textObj.optDouble("innerShadowDx", 3.0).toFloat(),
+                    innerShadowDy = textObj.optDouble("innerShadowDy", 3.0).toFloat(),
+                    innerShadowOpacity = textObj.optDouble("innerShadowOpacity", 0.7).toFloat(),
+                    hasInnerGlow = textObj.optBoolean("hasInnerGlow", false),
+                    innerGlowColorArgb = textObj.optInt("innerGlowColorArgb", 0xFFFF8C00.toInt()),
+                    innerGlowRadius = textObj.optDouble("innerGlowRadius", 10.0).toFloat(),
+                    innerGlowOpacity = textObj.optDouble("innerGlowOpacity", 0.8).toFloat(),
+                    hasColorOverlay = textObj.optBoolean("hasColorOverlay", false),
+                    colorOverlayColorArgb = textObj.optInt("colorOverlayColorArgb", 0xFF00ADB5.toInt()),
+                    colorOverlayOpacity = textObj.optDouble("colorOverlayOpacity", 1.0).toFloat()
                 )
 
                 val shapeObj = obj.optJSONObject("shapeProps") ?: JSONObject()

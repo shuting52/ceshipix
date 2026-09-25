@@ -14,14 +14,26 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,9 +43,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.landesheji.data.model.BackgroundType
 import com.landesheji.data.model.LayerType
 import com.landesheji.ui.components.UiThemeBackground
@@ -55,11 +72,21 @@ import com.landesheji.ui.dialogs.ExportFormat
 import com.landesheji.ui.dialogs.ExportSourceDialog
 import com.landesheji.ui.dialogs.QuotesDialog
 import com.landesheji.ui.dialogs.SaveProjectDialog
+import com.landesheji.ui.dialogs.SettingsDialog
 import com.landesheji.ui.dialogs.ShapesDialog
 import com.landesheji.ui.dialogs.StickersDialog
 import com.landesheji.ui.dialogs.TextEditorDialog
 import com.landesheji.ui.dialogs.UpdateCheckDialog
+import com.landesheji.ui.components.jellyClickable
+import com.landesheji.ui.components.kawaiiShadow
 import com.landesheji.ui.theme.KawaiiBg
+import com.landesheji.ui.theme.KawaiiCardTint
+import com.landesheji.ui.theme.KawaiiMint
+import com.landesheji.ui.theme.KawaiiOutline
+import com.landesheji.ui.theme.KawaiiPink
+import com.landesheji.ui.theme.KawaiiTextPrimary
+import com.landesheji.ui.theme.KawaiiTextSecondary
+import com.landesheji.ui.theme.KawaiiTextWhite
 import com.landesheji.ui.theme.MyApplicationTheme
 import com.landesheji.ui.viewmodel.BottomTab
 import com.landesheji.ui.viewmodel.PixelLabViewModel
@@ -106,6 +133,11 @@ fun PixelLabMainScreen(viewModel: PixelLabViewModel) {
     val uiBackgroundVideoUri by viewModel.uiBackgroundVideoUri.collectAsState()
     // 需求6：自定义贴纸
     val customStickers by viewModel.customStickers.collectAsState()
+    // v2.2：自由画笔模式
+    val isDrawMode by viewModel.isDrawMode.collectAsState()
+    val drawColorArgb by viewModel.drawColorArgb.collectAsState()
+    val drawStrokeWidth by viewModel.drawStrokeWidth.collectAsState()
+    val drawIsEraser by viewModel.drawIsEraser.collectAsState()
 
     // Dialog flags
     var showTextEditor by remember { mutableStateOf(false) }
@@ -123,6 +155,8 @@ fun PixelLabMainScreen(viewModel: PixelLabViewModel) {
     // 需求3：PS FX 侧边面板开关
     var showFxPanel by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    // v2.2：设置中心
+    var showSettingsDialog by remember { mutableStateOf(false) }
     // 需求12：更新检查
     var showUpdateCheckDialog by remember { mutableStateOf(false) }
 
@@ -266,24 +300,6 @@ fun PixelLabMainScreen(viewModel: PixelLabViewModel) {
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
                     )
                 },
-                onToggleBlurBackground = {
-                    viewModel.updateCanvasConfig {
-                        it.copy(backgroundBlur = if (it.backgroundBlur > 0f) 0f else 0.6f)
-                    }
-                    Toast.makeText(context, "已切换毛玻璃背景效果", Toast.LENGTH_SHORT).show()
-                },
-                onToggleNeonBackground = {
-                    viewModel.updateCanvasConfig {
-                        it.copy(backgroundNeonGlow = if (it.backgroundNeonGlow > 0f) 0f else 0.8f)
-                    }
-                    Toast.makeText(context, "已切换霓虹光晕背景效果", Toast.LENGTH_SHORT).show()
-                },
-                onToggleInvertBackground = {
-                    viewModel.updateCanvasConfig {
-                        it.copy(backgroundInvert = !it.backgroundInvert)
-                    }
-                    Toast.makeText(context, "已切换反色背景效果", Toast.LENGTH_SHORT).show()
-                },
                 onSaveProject = { showSaveProjectDialog = true },
                 onSaveImage = { showExportDialog = true },
                 onShare = { showExportDialog = true },
@@ -302,7 +318,9 @@ fun PixelLabMainScreen(viewModel: PixelLabViewModel) {
                     viewModel.clearCanvas()
                     Toast.makeText(context, "画布已清空", Toast.LENGTH_SHORT).show()
                 },
-                onShowAbout = { showAboutDialog = true }
+                onShowAbout = { showAboutDialog = true },
+                onShowSettings = { showSettingsDialog = true },
+                onToggleCanvasDraw = { viewModel.toggleDrawMode() }
             )
         },
         bottomBar = {
@@ -492,8 +510,27 @@ fun PixelLabMainScreen(viewModel: PixelLabViewModel) {
                 onResetLayerTransform = { id -> viewModel.resetLayerTransform(id) },
                 onUpdateZoom = { scale, px, py -> viewModel.updateZoom(scale, px, py) },
                 onResetZoom = { viewModel.resetZoom() },
-                onCanvasDisplayWidth = { viewModel.setCanvasDisplayWidth(it) }
+                onCanvasDisplayWidth = { viewModel.setCanvasDisplayWidth(it) },
+                isDrawMode = isDrawMode,
+                drawColorArgb = drawColorArgb,
+                drawStrokeWidth = drawStrokeWidth,
+                drawIsEraser = drawIsEraser,
+                onDrawStroke = { points -> viewModel.addCanvasDrawStroke(points) }
             )
+
+            // v2.2：自由画笔工具栏（浮动在画布上方）
+            if (isDrawMode) {
+                DrawOnCanvasToolbar(
+                    colorArgb = drawColorArgb,
+                    strokeWidth = drawStrokeWidth,
+                    isEraser = drawIsEraser,
+                    onColorChange = { viewModel.setDrawColor(it) },
+                    onStrokeWidthChange = { viewModel.setDrawStrokeWidth(it) },
+                    onEraserChange = { viewModel.setDrawIsEraser(it) },
+                    onDone = { viewModel.setDrawMode(false) },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
 
             // Dimmed overlay background behind Layers Panel if open
             AnimatedVisibility(
@@ -715,6 +752,14 @@ fun PixelLabMainScreen(viewModel: PixelLabViewModel) {
         )
     }
 
+    // v2.2：设置中心
+    if (showSettingsDialog) {
+        SettingsDialog(
+            onDismiss = { showSettingsDialog = false },
+            onCheckUpdate = { showUpdateCheckDialog = true }
+        )
+    }
+
     // 需求12：检查更新
     if (showUpdateCheckDialog) {
         UpdateCheckDialog(onDismiss = { showUpdateCheckDialog = false })
@@ -742,3 +787,81 @@ fun PixelLabMainScreen(viewModel: PixelLabViewModel) {
     }
     }
 }
+
+/**
+ * v2.2：自由画笔工具栏（画布上直接绘制）
+ * 提供颜色 / 粗细 / 橡皮擦 / 完成退出
+ */
+@Composable
+private fun DrawOnCanvasToolbar(
+    colorArgb: Int,
+    strokeWidth: Float,
+    isEraser: Boolean,
+    onColorChange: (Int) -> Unit,
+    onStrokeWidthChange: (Float) -> Unit,
+    onEraserChange: (Boolean) -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = listOf(
+        0xFFFF5252.toInt(), 0xFFFF9F1C.toInt(), 0xFFFFD166.toInt(), 0xFF06D6A0.toInt(),
+        0xFF118AB2.toInt(), 0xFF8338EC.toInt(), 0xFF2A2A38.toInt(), 0xFFFFFFFF.toInt()
+    )
+    Row(
+        modifier = modifier
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xE6FFFFFF))
+            .border(2.dp, KawaiiOutline, RoundedCornerShape(16.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // 颜色
+        colors.forEach { c ->
+            val isSel = !isEraser && colorArgb == c
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Color(c))
+                    .border(if (isSel) 3.dp else 1.dp, if (isSel) KawaiiPink else KawaiiOutline.copy(alpha = 0.3f), CircleShape)
+                    .jellyClickable { onColorChange(c); onEraserChange(false) }
+            )
+        }
+        // 粗细
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("粗细 ${strokeWidth.toInt()}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = KawaiiTextSecondary)
+            Slider(
+                value = strokeWidth,
+                onValueChange = onStrokeWidthChange,
+                valueRange = 2f..40f,
+                modifier = Modifier.width(90.dp),
+                colors = SliderDefaults.colors(thumbColor = KawaiiPink, activeTrackColor = KawaiiPink)
+            )
+        }
+        // 橡皮擦
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (isEraser) KawaiiPink else KawaiiCardTint)
+                .border(1.dp, KawaiiOutline.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                .jellyClickable { onEraserChange(!isEraser) }
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            Text(if (isEraser) "🧽 橡皮" else "🧽 橡皮擦", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isEraser) KawaiiTextWhite else KawaiiTextPrimary)
+        }
+        // 完成
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(KawaiiMint)
+                .border(1.5.dp, KawaiiOutline, RoundedCornerShape(10.dp))
+                .jellyClickable(onClick = onDone)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text("✔ 完成", fontSize = 11.sp, fontWeight = FontWeight.Black, color = KawaiiTextPrimary)
+        }
+    }
+}
+

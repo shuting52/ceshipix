@@ -38,6 +38,13 @@ enum class TextAlignment {
     RIGHT
 }
 
+/** v2.2：描边位置（类似 PS 描边位置：内/居中/外） */
+enum class StrokePosition {
+    INNER,
+    CENTER,
+    OUTER
+}
+
 data class DrawPoint(
     val x: Float,
     val y: Float
@@ -119,6 +126,8 @@ data class TextProperties(
     val hasGlow: Boolean = false,
     val glowColorArgb: Int = 0xFF00D4FF.toInt(),
     val glowRadius: Float = 18f,
+    // v2.2：外发光强度/不透明度
+    val glowOpacity: Float = 0.8f,
     // PS FX：纹理填充 (Texture Fill) —— 斜纹/点阵/棋盘/波浪等填充在文字表面
     val hasTextureFill: Boolean = false,
     val textureIndex: Int = 0,
@@ -131,7 +140,28 @@ data class TextProperties(
     // templateEffect 非空时，文字由 TemplateEffectsRenderer 按效果名 + 参数本地绘制，
     // 修改文字内容后效果保持不变（模板=数据、效果=绘制函数、文字=可修改参数）
     val templateEffect: String = "",
-    val templateEffectParamsJson: String = "{}"
+    val templateEffectParamsJson: String = "{}",
+    // ===== v2.2：PS 图层样式增强 =====
+    // 描边位置（内/居中/外）
+    val strokePosition: StrokePosition = StrokePosition.OUTER,
+    // 阴影扩展范围（0~100，模拟 PS 投影扩展）
+    val shadowSpread: Float = 0f,
+    // 内阴影（文字内部偏移暗影）
+    val hasInnerShadow: Boolean = false,
+    val innerShadowColorArgb: Int = 0xCC000000.toInt(),
+    val innerShadowRadius: Float = 8f,
+    val innerShadowDx: Float = 3f,
+    val innerShadowDy: Float = 3f,
+    val innerShadowOpacity: Float = 0.7f,
+    // 内发光（文字内部边缘发光）
+    val hasInnerGlow: Boolean = false,
+    val innerGlowColorArgb: Int = 0xFFFF8C00.toInt(),
+    val innerGlowRadius: Float = 10f,
+    val innerGlowOpacity: Float = 0.8f,
+    // 颜色叠加（纯色覆盖层）
+    val hasColorOverlay: Boolean = false,
+    val colorOverlayColorArgb: Int = 0xFF00ADB5.toInt(),
+    val colorOverlayOpacity: Float = 1f
 )
 
 data class ShapeProperties(

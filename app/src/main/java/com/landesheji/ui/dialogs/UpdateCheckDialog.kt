@@ -157,13 +157,11 @@ fun UpdateCheckDialog(
                         val info = updateInfo!!
                         Text(text = "🎉 发现新版本 v${info.versionName}", fontSize = 16.sp, fontWeight = FontWeight.Black, color = KawaiiPink)
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "更新说明：\n${info.changelog}",
-                            fontSize = 13.sp,
-                            color = KawaiiTextPrimary,
-                            lineHeight = 20.sp,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // v2.2：更新弹窗内容写死（每行一条）
+                        Text("叮咚~我们又又又更新啦！", fontSize = 14.sp, fontWeight = FontWeight.Black, color = KawaiiTextPrimary, lineHeight = 22.sp)
+                        Text("快更新看看新增了一些什么功能把~", fontSize = 13.sp, color = KawaiiTextPrimary, lineHeight = 20.sp)
+                        Text("如果你有什么好的想法建议", fontSize = 13.sp, color = KawaiiTextPrimary, lineHeight = 20.sp)
+                        Text("请联系作者", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = KawaiiPink, lineHeight = 20.sp)
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
