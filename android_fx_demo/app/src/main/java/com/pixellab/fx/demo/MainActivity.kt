@@ -61,11 +61,11 @@ class MainActivity : AppCompatActivity() {
     private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
     private val presetManager by lazy { TextFxPresetManager(this) }
     private val layerStack = mutableListOf(
-        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, true, 0, 0, Color.parseColor("#7db4ff"), 16f, 1f),
-        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, true, 0, 0, Color.parseColor("#7ef0c1"), 18f, 1.2f),
-        TextLayer(3, "Stroke", TextFxType.STROKE, true, 0, 0, Color.parseColor("#ffb86b"), 8f, 1.2f),
-        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, true, 0, 0, Color.parseColor("#d0a2ff"), 12f, 1.1f),
-        TextLayer(5, "Bevel", TextFxType.BEVEL, true, 0, 0, Color.parseColor("#ffd166"), 10f, 1.4f)
+        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, true, 0, 0, Color.parseColor("#7db4ff"), 16f, 1f, 1f, "Normal"),
+        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, true, 0, 0, Color.parseColor("#7ef0c1"), 18f, 1.2f, 1f, "Screen"),
+        TextLayer(3, "Stroke", TextFxType.STROKE, true, 0, 0, Color.parseColor("#ffb86b"), 8f, 1.2f, 1f, "Normal"),
+        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, true, 0, 0, Color.parseColor("#d0a2ff"), 12f, 1.1f, 1f, "Overlay"),
+        TextLayer(5, "Bevel", TextFxType.BEVEL, true, 0, 0, Color.parseColor("#ffd166"), 10f, 1.4f, 1f, "Normal")
     )
     private lateinit var layerStackContainer: LinearLayout
     private lateinit var layerToggleRow: LinearLayout
@@ -83,6 +83,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun selectedLayer(): TextLayer? = layerStack.firstOrNull { it.name == selectedLayerName }
 
+    private fun applyColorWithBlend(baseColor: Int, layer: TextLayer): Int {
+        val alpha = ((Color.alpha(baseColor) * layer.opacity).toInt()).coerceIn(0, 255)
+        val r = Color.red(baseColor)
+        val g = Color.green(baseColor)
+        val b = Color.blue(baseColor)
+
+        return when (layer.blendMode) {
+            "Multiply" -> Color.argb(alpha, (r * 0.7f).toInt().coerceIn(0, 255), (g * 0.7f).toInt().coerceIn(0, 255), (b * 0.7f).toInt().coerceIn(0, 255))
+            "Screen" -> Color.argb(alpha, ((255 - (255 - r) * 0.7f)).toInt().coerceIn(0, 255), ((255 - (255 - g) * 0.7f)).toInt().coerceIn(0, 255), ((255 - (255 - b) * 0.7f)).toInt().coerceIn(0, 255))
+            "Overlay" -> Color.argb(alpha, ((if (r < 128) r * 2 else 255 - (255 - r) * 2) * 0.75f).toInt().coerceIn(0, 255), ((if (g < 128) g * 2 else 255 - (255 - g) * 2) * 0.75f).toInt().coerceIn(0, 255), ((if (b < 128) b * 2 else 255 - (255 - b) * 2) * 0.75f).toInt().coerceIn(0, 255))
+            else -> Color.argb(alpha, r, g, b)
+        }
+    }
+
     private fun applySelectedLayerOverrides(config: TextFxConfig): TextFxConfig {
         val layer = selectedLayer() ?: return config
         if (layer.type != config.type) return config
@@ -92,27 +106,27 @@ class MainActivity : AppCompatActivity() {
                 shadowRadius = maxOf(config.shadowRadius, layer.blurRadius),
                 shadowDx = layer.offsetX.toFloat(),
                 shadowDy = layer.offsetY.toFloat(),
-                shadowColor = layer.accentColor
+                shadowColor = applyColorWithBlend(layer.accentColor, layer)
             )
             TextFxType.OUTER_GLOW -> config.copy(
                 glowRadius = maxOf(config.glowRadius, layer.blurRadius),
-                glowColor = layer.accentColor
+                glowColor = applyColorWithBlend(layer.accentColor, layer)
             )
             TextFxType.STROKE -> config.copy(
-                strokeColor = layer.accentColor,
+                strokeColor = applyColorWithBlend(layer.accentColor, layer),
                 strokeWidth = maxOf(config.strokeWidth, layer.layerStrength * 8f)
             )
             TextFxType.GRADIENT_FILL -> config.copy(
-                fillColor = layer.accentColor,
+                fillColor = applyColorWithBlend(layer.accentColor, layer),
                 gradientColors = intArrayOf(
-                    layer.accentColor,
-                    Color.parseColor("#FD1D1D"),
-                    Color.parseColor("#833AB4")
+                    applyColorWithBlend(layer.accentColor, layer),
+                    applyColorWithBlend(Color.parseColor("#FD1D1D"), layer),
+                    applyColorWithBlend(Color.parseColor("#833AB4"), layer)
                 )
             )
             TextFxType.BEVEL -> config.copy(
                 bevelDepth = maxOf(config.bevelDepth, layer.layerStrength * 10f),
-                bevelHighlight = layer.accentColor
+                bevelHighlight = applyColorWithBlend(layer.accentColor, layer)
             )
             else -> config
         }
@@ -870,6 +884,22 @@ class MainActivity : AppCompatActivity() {
         }
         layerEditorContainer.addView(title)
 
+        val blendBtn = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+            text = "Blend: ${layer.blendMode}"
+            setOnClickListener {
+                val modes = listOf("Normal", "Multiply", "Screen", "Overlay")
+                val currentIndex = modes.indexOf(layer.blendMode)
+                layer.blendMode = modes[(currentIndex + 1) % modes.size]
+                refreshSelectedLayerEditor()
+                applyTextFxPreset(selectedTextPreset)
+            }
+        }
+        layerEditorContainer.addView(blendBtn)
+
+        layerEditorContainer.addView(makeSliderRow("Opacity", 0.1f, 1.0f, layer.opacity) { value ->
+            layer.opacity = value
+            applyTextFxPreset(selectedTextPreset)
+        })
         layerEditorContainer.addView(makeSliderRow("Offset X", -40f, 40f, layer.offsetX.toFloat()) { value ->
             layer.offsetX = value.toInt()
             applyTextFxPreset(selectedTextPreset)
@@ -886,6 +916,66 @@ class MainActivity : AppCompatActivity() {
             layer.layerStrength = value
             applyTextFxPreset(selectedTextPreset)
         })
+    }
+
+    private fun addLayerForCurrentPreset() {
+        val layerType = when (selectedTextPreset) {
+            TextFxType.DROP_SHADOW -> TextFxType.DROP_SHADOW
+            TextFxType.OUTER_GLOW -> TextFxType.OUTER_GLOW
+            TextFxType.STROKE -> TextFxType.STROKE
+            TextFxType.GRADIENT_FILL -> TextFxType.GRADIENT_FILL
+            TextFxType.BEVEL -> TextFxType.BEVEL
+            TextFxType.INNER_GLOW -> TextFxType.OUTER_GLOW
+            TextFxType.MULTI_LAYER -> TextFxType.DROP_SHADOW
+        }
+
+        val baseName = when (layerType) {
+            TextFxType.DROP_SHADOW -> "Shadow"
+            TextFxType.OUTER_GLOW -> "Glow"
+            TextFxType.STROKE -> "Stroke"
+            TextFxType.GRADIENT_FILL -> "Gradient"
+            TextFxType.BEVEL -> "Bevel"
+            TextFxType.INNER_GLOW -> "Glow"
+            TextFxType.MULTI_LAYER -> "Shadow"
+        }
+
+        val uniqueName = if (layerStack.none { it.name == baseName }) baseName else "${baseName}_${layerStack.size + 1}"
+        val newLayer = TextLayer(
+            id = (layerStack.maxOfOrNull { it.id } ?: 0) + 1,
+            name = uniqueName,
+            type = layerType,
+            enabled = true,
+            offsetX = 0,
+            offsetY = 0,
+            accentColor = currentTextColor,
+            blurRadius = when (layerType) {
+                TextFxType.DROP_SHADOW -> textFxShadowBlurValue
+                TextFxType.OUTER_GLOW -> textFxGlowValue
+                TextFxType.STROKE -> textFxStrokeValue
+                TextFxType.GRADIENT_FILL -> textFxSizeValue / 2f
+                TextFxType.BEVEL -> textFxBevelDepthValue
+                else -> 12f
+            },
+            layerStrength = 1f,
+            opacity = 1f,
+            blendMode = "Normal"
+        )
+
+        layerStack.add(newLayer)
+        selectedLayerName = newLayer.name
+        refreshSelectedLayerEditor()
+        rebuildLayerStackUI()
+        applyTextFxPreset(selectedTextPreset)
+    }
+
+    private fun deleteSelectedLayer() {
+        val layer = selectedLayer() ?: return
+        if (layerStack.size <= 1) return
+        layerStack.remove(layer)
+        selectedLayerName = layerStack.first().name
+        refreshSelectedLayerEditor()
+        rebuildLayerStackUI()
+        applyTextFxPreset(selectedTextPreset)
     }
 
     private fun rebuildLayerStackUI() {
