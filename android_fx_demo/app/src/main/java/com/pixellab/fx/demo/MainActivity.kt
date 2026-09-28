@@ -1,5 +1,6 @@
 package com.pixellab.fx.demo
 
+import android.app.AlertDialog
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -51,6 +52,11 @@ class MainActivity : AppCompatActivity() {
     private var currentTextColor = Color.WHITE
     private var currentFontIndex = 0
     private var transparentBgExport = true
+    private var layerShadowEnabled = true
+    private var layerGlowEnabled = true
+    private var layerStrokeEnabled = true
+    private var layerGradientEnabled = true
+    private var layerBevelEnabled = true
     private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
     private val fxPrefs by lazy { getSharedPreferences("ps_text_fx_presets", MODE_PRIVATE) }
 
@@ -393,14 +399,46 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 8, 0, 8)
         }
         val customColorBtn = Button(this).apply {
-            text = "Use Color"
+            text = "Picker"
             setOnClickListener {
-                applyCustomColor()
+                showCustomColorPicker()
             }
         }
         customColorRow.addView(customColorInput)
         customColorRow.addView(customColorBtn)
         controlsCard.addView(customColorRow)
+
+        val layerToggleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+        val layerNames = listOf(
+            "Shadow" to ::layerShadowEnabled,
+            "Glow" to ::layerGlowEnabled,
+            "Stroke" to ::layerStrokeEnabled,
+            "Gradient" to ::layerGradientEnabled,
+            "Bevel" to ::layerBevelEnabled
+        )
+        layerNames.forEach { (label, getter) ->
+            val toggle = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+                text = label
+                textSize = 10f
+                setOnClickListener {
+                    val current = getter.get()
+                    if (label == "Shadow") layerShadowEnabled = !current
+                    if (label == "Glow") layerGlowEnabled = !current
+                    if (label == "Stroke") layerStrokeEnabled = !current
+                    if (label == "Gradient") layerGradientEnabled = !current
+                    if (label == "Bevel") layerBevelEnabled = !current
+                    updateLayerToggleStyles(layerToggleRow)
+                    applyTextFxPreset(selectedTextPreset)
+                }
+            }
+            layerToggleRow.addView(toggle)
+        }
+        updateLayerToggleStyles(layerToggleRow)
+        controlsCard.addView(layerToggleRow)
 
         val swatchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -752,6 +790,89 @@ class MainActivity : AppCompatActivity() {
             3 -> Typeface.MONOSPACE
             else -> Typeface.DEFAULT
         }
+    }
+
+    private fun updateLayerToggleStyles(row: LinearLayout) {
+        val states = listOf(
+            "Shadow" to layerShadowEnabled,
+            "Glow" to layerGlowEnabled,
+            "Stroke" to layerStrokeEnabled,
+            "Gradient" to layerGradientEnabled,
+            "Bevel" to layerBevelEnabled
+        )
+        for (index in 0 until row.childCount) {
+            val button = row.getChildAt(index) as? Button ?: continue
+            val label = button.text.toString()
+            val active = states.firstOrNull { it.first == label }?.second == true
+            button.setTextColor(if (active) Color.parseColor("#7db4ff") else Color.WHITE)
+            button.setBackgroundColor(if (active) Color.parseColor("#213149") else Color.parseColor("#1d2531"))
+        }
+    }
+
+    private fun showCustomColorPicker() {
+        val pickerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 16)
+        }
+
+        val preview = View(this).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 48)
+            setBackgroundColor(currentTextColor)
+        }
+
+        val red = SeekBar(this).apply {
+            max = 255
+            progress = Color.red(currentTextColor)
+        }
+        val green = SeekBar(this).apply {
+            max = 255
+            progress = Color.green(currentTextColor)
+        }
+        val blue = SeekBar(this).apply {
+            max = 255
+            progress = Color.blue(currentTextColor)
+        }
+
+        fun syncPreview() {
+            val color = Color.rgb(red.progress, green.progress, blue.progress)
+            currentTextColor = color
+            preview.setBackgroundColor(color)
+            customColorInput.setText(String.format("#%06X", (0xFFFFFF and color)))
+            applyTextFxPreset(selectedTextPreset)
+        }
+
+        red.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = syncPreview()
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        green.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = syncPreview()
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        blue.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = syncPreview()
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+
+        pickerLayout.addView(preview)
+        pickerLayout.addView(TextView(this).apply { text = "R"; setTextColor(Color.WHITE) })
+        pickerLayout.addView(red)
+        pickerLayout.addView(TextView(this).apply { text = "G"; setTextColor(Color.WHITE) })
+        pickerLayout.addView(green)
+        pickerLayout.addView(TextView(this).apply { text = "B"; setTextColor(Color.WHITE) })
+        pickerLayout.addView(blue)
+
+        AlertDialog.Builder(this)
+            .setTitle("Choose Color")
+            .setView(pickerLayout)
+            .setPositiveButton("Apply") { _, _ ->
+                applyCustomColor()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun applyCustomColor() {
