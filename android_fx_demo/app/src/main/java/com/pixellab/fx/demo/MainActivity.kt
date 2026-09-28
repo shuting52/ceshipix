@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.Shader
 import android.os.Bundle
+import android.os.Environment
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -19,13 +20,20 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var fxView: FxPanelView
     private lateinit var selectedLabel: TextView
     private lateinit var effectList: LinearLayout
+    private lateinit var textValueInput: EditText
+    private lateinit var fontRow: LinearLayout
+    private lateinit var customColorInput: EditText
+    private lateinit var presetNameInput: EditText
 
     private var selectedType: FxType = FxType.DROP_SHADOW
     private var opacityValue = 0.75f
@@ -42,7 +50,9 @@ class MainActivity : AppCompatActivity() {
     private var textInputValue = "PS FX"
     private var currentTextColor = Color.WHITE
     private var currentFontIndex = 0
+    private var transparentBgExport = true
     private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
+    private val fxPrefs by lazy { getSharedPreferences("ps_text_fx_presets", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -299,7 +309,7 @@ class MainActivity : AppCompatActivity() {
         }
         controlsCard.addView(textFxTitle)
 
-        val textValueInput = EditText(this).apply {
+        textValueInput = EditText(this).apply {
             setText(textInputValue)
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.parseColor("#1d2531"))
@@ -349,7 +359,7 @@ class MainActivity : AppCompatActivity() {
         })
         controlsCard.addView(textFxSliderGroup)
 
-        val fontRow = LinearLayout(this).apply {
+        fontRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 8, 0, 8)
@@ -369,6 +379,28 @@ class MainActivity : AppCompatActivity() {
             fontRow.addView(fontButton)
         }
         controlsCard.addView(fontRow)
+
+        customColorInput = EditText(this).apply {
+            setText("#FFFFFF")
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1d2531"))
+            setPadding(12, 10, 12, 10)
+            setSingleLine()
+        }
+        val customColorRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+        val customColorBtn = Button(this).apply {
+            text = "Use Color"
+            setOnClickListener {
+                applyCustomColor()
+            }
+        }
+        customColorRow.addView(customColorInput)
+        customColorRow.addView(customColorBtn)
+        controlsCard.addView(customColorRow)
 
         val swatchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -392,12 +424,62 @@ class MainActivity : AppCompatActivity() {
                 }
                 setOnClickListener {
                     currentTextColor = color
+                    customColorInput.setText(String.format("#%06X", (0xFFFFFF and color)))
                     applyTextFxPreset(selectedTextPreset)
                 }
             }
             swatchRow.addView(swatch)
         }
         controlsCard.addView(swatchRow)
+
+        presetNameInput = EditText(this).apply {
+            setText("MyPreset")
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1d2531"))
+            setPadding(12, 10, 12, 10)
+            setSingleLine()
+        }
+        val presetRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+        val savePresetBtn = Button(this).apply {
+            text = "Save Preset"
+            setOnClickListener {
+                saveCurrentPreset()
+            }
+        }
+        val loadPresetBtn = Button(this).apply {
+            text = "Load Last"
+            setOnClickListener {
+                loadLatestPreset()
+            }
+        }
+        presetRow.addView(presetNameInput)
+        presetRow.addView(savePresetBtn)
+        presetRow.addView(loadPresetBtn)
+        controlsCard.addView(presetRow)
+
+        val transparentRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+        val transparentLabel = TextView(this).apply {
+            text = "Transparent BG"
+            textSize = 12f
+            setTextColor(Color.parseColor("#dfe7f6"))
+        }
+        val transparentToggle = CheckBox(this).apply {
+            isChecked = transparentBgExport
+            setOnCheckedChangeListener { _, checked ->
+                transparentBgExport = checked
+            }
+        }
+        transparentRow.addView(transparentLabel)
+        transparentRow.addView(transparentToggle)
+        controlsCard.addView(transparentRow)
 
         val sliderGroup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -672,6 +754,60 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun applyCustomColor() {
+        val value = customColorInput.text?.toString()?.trim().orEmpty()
+        val normalized = if (value.startsWith("#")) value else "#$value"
+        try {
+            currentTextColor = Color.parseColor(normalized)
+            applyTextFxPreset(selectedTextPreset)
+            Toast.makeText(this, "Color updated", Toast.LENGTH_SHORT).show()
+        } catch (_: IllegalArgumentException) {
+            Toast.makeText(this, "Invalid color format", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun saveCurrentPreset() {
+        val name = presetNameInput.text?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "MyPreset"
+        val editor = fxPrefs.edit()
+        editor.putString("preset_${name}_text", textInputValue)
+        editor.putInt("preset_${name}_color", currentTextColor)
+        editor.putFloat("preset_${name}_size", textFxSizeValue)
+        editor.putFloat("preset_${name}_shadow_blur", textFxShadowBlurValue)
+        editor.putFloat("preset_${name}_shadow_x", textFxShadowDxValue)
+        editor.putFloat("preset_${name}_shadow_y", textFxShadowDyValue)
+        editor.putFloat("preset_${name}_glow", textFxGlowValue)
+        editor.putFloat("preset_${name}_stroke", textFxStrokeValue)
+        editor.putFloat("preset_${name}_bevel", textFxBevelDepthValue)
+        editor.putInt("preset_${name}_font", currentFontIndex)
+        editor.putString("preset_last_name", name)
+        editor.apply()
+        Toast.makeText(this, "Preset saved: $name", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun loadLatestPreset() {
+        val name = fxPrefs.getString("preset_last_name", "")
+        if (name.isNullOrEmpty()) {
+            Toast.makeText(this, "No preset saved yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        textInputValue = fxPrefs.getString("preset_${name}_text", textInputValue) ?: textInputValue
+        currentTextColor = fxPrefs.getInt("preset_${name}_color", currentTextColor)
+        textFxSizeValue = fxPrefs.getFloat("preset_${name}_size", textFxSizeValue)
+        textFxShadowBlurValue = fxPrefs.getFloat("preset_${name}_shadow_blur", textFxShadowBlurValue)
+        textFxShadowDxValue = fxPrefs.getFloat("preset_${name}_shadow_x", textFxShadowDxValue)
+        textFxShadowDyValue = fxPrefs.getFloat("preset_${name}_shadow_y", textFxShadowDyValue)
+        textFxGlowValue = fxPrefs.getFloat("preset_${name}_glow", textFxGlowValue)
+        textFxStrokeValue = fxPrefs.getFloat("preset_${name}_stroke", textFxStrokeValue)
+        textFxBevelDepthValue = fxPrefs.getFloat("preset_${name}_bevel", textFxBevelDepthValue)
+        currentFontIndex = fxPrefs.getInt("preset_${name}_font", currentFontIndex)
+        customColorInput.setText(String.format("#%06X", (0xFFFFFF and currentTextColor)))
+        presetNameInput.setText(name)
+        textValueInput.setText(textInputValue)
+        updateFontButtons(fontRow)
+        applyTextFxPreset(selectedTextPreset)
+        Toast.makeText(this, "Preset loaded: $name", Toast.LENGTH_SHORT).show()
+    }
+
     private fun exportCurrentTextEffect() {
         val config = when (selectedTextPreset) {
             TextFxType.DROP_SHADOW -> TextFxConfig(
@@ -757,7 +893,17 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        val outputBitmap = TextFx.renderTextBitmap(config)
+        val baseBitmap = TextFx.renderTextBitmap(config)
+        val outputBitmap = if (transparentBgExport) {
+            baseBitmap
+        } else {
+            val painted = Bitmap.createBitmap(baseBitmap.width, baseBitmap.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(painted)
+            canvas.drawColor(Color.WHITE)
+            canvas.drawBitmap(baseBitmap, 0f, 0f, null)
+            painted
+        }
+
         val dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
         val file = File(dir, "psfx_${System.currentTimeMillis()}.png")
         FileOutputStream(file).use { stream ->
