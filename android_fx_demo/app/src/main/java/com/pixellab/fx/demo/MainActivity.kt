@@ -60,6 +60,14 @@ class MainActivity : AppCompatActivity() {
     private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
     private val presetManager by lazy { TextFxPresetManager(this) }
 
+    private fun buildTextLayers(): List<TextLayer> = listOf(
+        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, layerShadowEnabled),
+        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, layerGlowEnabled),
+        TextLayer(3, "Stroke", TextFxType.STROKE, layerStrokeEnabled),
+        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, layerGradientEnabled),
+        TextLayer(5, "Bevel", TextFxType.BEVEL, layerBevelEnabled)
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -770,7 +778,7 @@ class MainActivity : AppCompatActivity() {
                 bevelDepth = textFxBevelDepthValue
             )
         }
-        fxView.setSourceBitmap(TextFx.renderTextBitmap(config))
+        fxView.setSourceBitmap(TextFx.renderTextBitmap(config, buildTextLayers()))
     }
 
     private fun updateFontButtons(fontRow: LinearLayout) {
@@ -1017,7 +1025,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        val baseBitmap = TextFx.renderTextBitmap(config)
+        val baseBitmap = TextFx.renderTextBitmap(config, buildTextLayers())
         val outputBitmap = if (transparentBgExport) {
             baseBitmap
         } else {

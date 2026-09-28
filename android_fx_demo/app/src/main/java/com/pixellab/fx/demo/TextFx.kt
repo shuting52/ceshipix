@@ -44,7 +44,7 @@ data class TextFxConfig(
 
 object TextFx {
 
-    fun renderTextBitmap(config: TextFxConfig): Bitmap {
+    fun renderTextBitmap(config: TextFxConfig, layers: List<TextLayer> = emptyList()): Bitmap {
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = config.fillColor
             textSize = config.textSize
@@ -64,18 +64,53 @@ object TextFx {
         val baseX = pad.toFloat() - bounds.left
         val baseY = pad.toFloat() - bounds.top
 
+        val effectiveLayers = if (layers.isEmpty()) defaultLayers() else layers
+        val layerOrder = effectiveLayers.filter { it.enabled }
+
         when (config.type) {
-            TextFxType.DROP_SHADOW -> drawDropShadow(canvas, config, baseX, baseY)
-            TextFxType.OUTER_GLOW -> drawOuterGlow(canvas, config, baseX, baseY)
-            TextFxType.STROKE -> drawStroke(canvas, config, baseX, baseY)
-            TextFxType.GRADIENT_FILL -> drawGradientFill(canvas, config, baseX, baseY)
-            TextFxType.INNER_GLOW -> drawInnerGlow(canvas, config, baseX, baseY)
-            TextFxType.BEVEL -> drawBevel(canvas, config, baseX, baseY)
-            TextFxType.MULTI_LAYER -> drawMultiLayer(canvas, config, baseX, baseY)
+            TextFxType.DROP_SHADOW -> {
+                if (layerOrder.any { it.type == TextFxType.DROP_SHADOW }) drawDropShadow(canvas, config, baseX, baseY)
+                else drawFill(canvas, config, baseX, baseY)
+            }
+            TextFxType.OUTER_GLOW -> {
+                if (layerOrder.any { it.type == TextFxType.OUTER_GLOW }) drawOuterGlow(canvas, config, baseX, baseY)
+                else drawFill(canvas, config, baseX, baseY)
+            }
+            TextFxType.STROKE -> {
+                if (layerOrder.any { it.type == TextFxType.STROKE }) drawStroke(canvas, config, baseX, baseY)
+                else drawFill(canvas, config, baseX, baseY)
+            }
+            TextFxType.GRADIENT_FILL -> {
+                if (layerOrder.any { it.type == TextFxType.GRADIENT_FILL }) drawGradientFill(canvas, config, baseX, baseY)
+                else drawFill(canvas, config, baseX, baseY)
+            }
+            TextFxType.INNER_GLOW -> {
+                if (layerOrder.any { it.type == TextFxType.INNER_GLOW }) drawInnerGlow(canvas, config, baseX, baseY)
+                else drawFill(canvas, config, baseX, baseY)
+            }
+            TextFxType.BEVEL -> {
+                if (layerOrder.any { it.type == TextFxType.BEVEL }) drawBevel(canvas, config, baseX, baseY)
+                else drawFill(canvas, config, baseX, baseY)
+            }
+            TextFxType.MULTI_LAYER -> {
+                if (layerOrder.isNotEmpty()) {
+                    drawMultiLayer(canvas, config, baseX, baseY)
+                } else {
+                    drawFill(canvas, config, baseX, baseY)
+                }
+            }
         }
 
         return output
     }
+
+    private fun defaultLayers(): List<TextLayer> = listOf(
+        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, true),
+        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, true),
+        TextLayer(3, "Stroke", TextFxType.STROKE, true),
+        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, true),
+        TextLayer(5, "Bevel", TextFxType.BEVEL, true)
+    )
 
     private fun drawDropShadow(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {
         if (config.shadowRadius <= 0f) {
