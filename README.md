@@ -43,6 +43,8 @@ Current features include:
 - Stroke controls
 - Photoshop-style text FX presets
 - Text shadow / glow / stroke / gradient / bevel preview
+- Live editing for text content, font family, and color swatches
+- PNG export for the current text FX result
 - Version update detection flow
 - Animated update dialog
 

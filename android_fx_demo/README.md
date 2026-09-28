@@ -15,6 +15,9 @@ This is a runnable demo project that recreates a Photoshop-like FX panel in Andr
 - Stroke
 - Photoshop-style text FX presets
 - Text shadow, glow, stroke, gradient, and bevel effects
+- Live text editing with custom color swatches
+- Font switching for default, bold, serif, and mono styles
+- PNG export of the current generated text effect
 
 ## Structure
 

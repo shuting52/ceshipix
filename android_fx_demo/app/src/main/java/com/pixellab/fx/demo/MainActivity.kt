@@ -41,6 +41,8 @@ class MainActivity : AppCompatActivity() {
     private var textFxBevelDepthValue = 7f
     private var textInputValue = "PS FX"
     private var currentTextColor = Color.WHITE
+    private var currentFontIndex = 0
+    private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -347,6 +349,27 @@ class MainActivity : AppCompatActivity() {
         })
         controlsCard.addView(textFxSliderGroup)
 
+        val fontRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+        fontNames.forEachIndexed { index, name ->
+            val fontButton = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+                text = name
+                textSize = 10f
+                setTextColor(if (index == currentFontIndex) Color.parseColor("#7db4ff") else Color.WHITE)
+                setBackgroundColor(if (index == currentFontIndex) Color.parseColor("#213149") else Color.parseColor("#1d2531"))
+                setOnClickListener {
+                    currentFontIndex = index
+                    applyTextFxPreset(selectedTextPreset)
+                    updateFontButtons(fontRow)
+                }
+            }
+            fontRow.addView(fontButton)
+        }
+        controlsCard.addView(fontRow)
+
         val swatchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -408,6 +431,17 @@ class MainActivity : AppCompatActivity() {
             text = "Apply"
             setBackgroundColor(Color.parseColor("#2a74ff"))
             setTextColor(Color.WHITE)
+            setOnClickListener {
+                applyTextFxPreset(selectedTextPreset)
+            }
+        }
+        val exportBtn = Button(this).apply {
+            text = "Export"
+            setBackgroundColor(Color.parseColor("#355f8d"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                exportCurrentTextEffect()
+            }
         }
         val textFxBtn = Button(this).apply {
             text = "Text FX"
@@ -419,6 +453,7 @@ class MainActivity : AppCompatActivity() {
         }
         actionBar.addView(cancel)
         actionBar.addView(textFxBtn)
+        actionBar.addView(exportBtn)
         actionBar.addView(apply)
         controlsCard.addView(actionBar)
 
@@ -534,6 +569,7 @@ class MainActivity : AppCompatActivity() {
             TextFxType.DROP_SHADOW -> TextFxConfig(
                 text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.DROP_SHADOW,
+                typeface = resolveCurrentTypeface(),
                 textSize = textFxSizeValue,
                 fillColor = currentTextColor,
                 shadowColor = Color.argb(220, 0, 0, 0),
@@ -546,6 +582,7 @@ class MainActivity : AppCompatActivity() {
             TextFxType.OUTER_GLOW -> TextFxConfig(
                 text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.OUTER_GLOW,
+                typeface = resolveCurrentTypeface(),
                 textSize = textFxSizeValue,
                 fillColor = currentTextColor,
                 glowColor = Color.argb(220, 119, 181, 255),
@@ -554,6 +591,7 @@ class MainActivity : AppCompatActivity() {
             TextFxType.STROKE -> TextFxConfig(
                 text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.STROKE,
+                typeface = resolveCurrentTypeface(),
                 textSize = textFxSizeValue,
                 fillColor = currentTextColor,
                 strokeColor = Color.parseColor("#7C4DFF"),
@@ -562,6 +600,7 @@ class MainActivity : AppCompatActivity() {
             TextFxType.GRADIENT_FILL -> TextFxConfig(
                 text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.GRADIENT_FILL,
+                typeface = resolveCurrentTypeface(),
                 textSize = textFxSizeValue,
                 fillColor = currentTextColor,
                 gradientColors = intArrayOf(
@@ -573,6 +612,7 @@ class MainActivity : AppCompatActivity() {
             TextFxType.BEVEL -> TextFxConfig(
                 text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.BEVEL,
+                typeface = resolveCurrentTypeface(),
                 textSize = textFxSizeValue,
                 fillColor = currentTextColor,
                 bevelHighlight = Color.argb(180, 255, 255, 255),
@@ -582,6 +622,7 @@ class MainActivity : AppCompatActivity() {
             TextFxType.INNER_GLOW -> TextFxConfig(
                 text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.INNER_GLOW,
+                typeface = resolveCurrentTypeface(),
                 textSize = textFxSizeValue,
                 fillColor = currentTextColor,
                 glowColor = Color.argb(200, 255, 255, 255),
@@ -590,6 +631,7 @@ class MainActivity : AppCompatActivity() {
             TextFxType.MULTI_LAYER -> TextFxConfig(
                 text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.MULTI_LAYER,
+                typeface = resolveCurrentTypeface(),
                 textSize = textFxSizeValue,
                 fillColor = currentTextColor,
                 shadowColor = Color.argb(220, 0, 0, 0),
@@ -609,6 +651,119 @@ class MainActivity : AppCompatActivity() {
             )
         }
         fxView.setSourceBitmap(TextFx.renderTextBitmap(config))
+    }
+
+    private fun updateFontButtons(fontRow: LinearLayout) {
+        for (index in 0 until fontRow.childCount) {
+            val button = fontRow.getChildAt(index) as? Button ?: continue
+            val selected = index == currentFontIndex
+            button.setTextColor(if (selected) Color.parseColor("#7db4ff") else Color.WHITE)
+            button.setBackgroundColor(if (selected) Color.parseColor("#213149") else Color.parseColor("#1d2531"))
+        }
+    }
+
+    private fun resolveCurrentTypeface(): Typeface {
+        return when (currentFontIndex) {
+            0 -> Typeface.DEFAULT
+            1 -> Typeface.DEFAULT_BOLD
+            2 -> Typeface.SERIF
+            3 -> Typeface.MONOSPACE
+            else -> Typeface.DEFAULT
+        }
+    }
+
+    private fun exportCurrentTextEffect() {
+        val config = when (selectedTextPreset) {
+            TextFxType.DROP_SHADOW -> TextFxConfig(
+                text = textInputValue.ifEmpty { "PS FX" },
+                type = TextFxType.DROP_SHADOW,
+                typeface = resolveCurrentTypeface(),
+                textSize = textFxSizeValue,
+                fillColor = currentTextColor,
+                shadowColor = Color.argb(220, 0, 0, 0),
+                shadowRadius = textFxShadowBlurValue,
+                shadowDx = textFxShadowDxValue,
+                shadowDy = textFxShadowDyValue
+            )
+            TextFxType.OUTER_GLOW -> TextFxConfig(
+                text = textInputValue.ifEmpty { "PS FX" },
+                type = TextFxType.OUTER_GLOW,
+                typeface = resolveCurrentTypeface(),
+                textSize = textFxSizeValue,
+                fillColor = currentTextColor,
+                glowColor = Color.argb(220, 119, 181, 255),
+                glowRadius = textFxGlowValue
+            )
+            TextFxType.STROKE -> TextFxConfig(
+                text = textInputValue.ifEmpty { "PS FX" },
+                type = TextFxType.STROKE,
+                typeface = resolveCurrentTypeface(),
+                textSize = textFxSizeValue,
+                fillColor = currentTextColor,
+                strokeColor = Color.parseColor("#7C4DFF"),
+                strokeWidth = textFxStrokeValue
+            )
+            TextFxType.GRADIENT_FILL -> TextFxConfig(
+                text = textInputValue.ifEmpty { "PS FX" },
+                type = TextFxType.GRADIENT_FILL,
+                typeface = resolveCurrentTypeface(),
+                textSize = textFxSizeValue,
+                fillColor = currentTextColor,
+                gradientColors = intArrayOf(
+                    Color.parseColor("#FCB045"),
+                    Color.parseColor("#FD1D1D"),
+                    Color.parseColor("#833AB4")
+                )
+            )
+            TextFxType.BEVEL -> TextFxConfig(
+                text = textInputValue.ifEmpty { "PS FX" },
+                type = TextFxType.BEVEL,
+                typeface = resolveCurrentTypeface(),
+                textSize = textFxSizeValue,
+                fillColor = currentTextColor,
+                bevelHighlight = Color.argb(180, 255, 255, 255),
+                bevelShadow = Color.argb(180, 70, 40, 15),
+                bevelDepth = textFxBevelDepthValue
+            )
+            TextFxType.INNER_GLOW -> TextFxConfig(
+                text = textInputValue.ifEmpty { "PS FX" },
+                type = TextFxType.INNER_GLOW,
+                typeface = resolveCurrentTypeface(),
+                textSize = textFxSizeValue,
+                fillColor = currentTextColor,
+                glowColor = Color.argb(200, 255, 255, 255),
+                glowRadius = textFxGlowValue
+            )
+            TextFxType.MULTI_LAYER -> TextFxConfig(
+                text = textInputValue.ifEmpty { "PS FX" },
+                type = TextFxType.MULTI_LAYER,
+                typeface = resolveCurrentTypeface(),
+                textSize = textFxSizeValue,
+                fillColor = currentTextColor,
+                shadowColor = Color.argb(220, 0, 0, 0),
+                shadowRadius = textFxShadowBlurValue,
+                shadowDx = textFxShadowDxValue,
+                shadowDy = textFxShadowDyValue,
+                glowColor = Color.argb(200, 120, 200, 255),
+                glowRadius = textFxGlowValue,
+                strokeColor = Color.parseColor("#5E35B1"),
+                strokeWidth = textFxStrokeValue,
+                gradientColors = intArrayOf(
+                    Color.parseColor("#FFD54F"),
+                    Color.parseColor("#FF7043"),
+                    Color.parseColor("#7E57C2")
+                ),
+                bevelDepth = textFxBevelDepthValue
+            )
+        }
+
+        val outputBitmap = TextFx.renderTextBitmap(config)
+        val dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
+        val file = File(dir, "psfx_${System.currentTimeMillis()}.png")
+        FileOutputStream(file).use { stream ->
+            outputBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        }
+        Toast.makeText(this, "Saved: ${file.name}", Toast.LENGTH_SHORT).show()
     }
 
     private fun createDemoBitmap(): Bitmap {
