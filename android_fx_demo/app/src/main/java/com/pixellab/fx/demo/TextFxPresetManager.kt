@@ -13,7 +13,8 @@ data class TextFxPresetState(
     val shadowY: Float = 6f,
     val glow: Float = 18f,
     val stroke: Float = 8f,
-    val bevel: Float = 7f
+    val bevel: Float = 7f,
+    val layerStackJson: String = "[]"
 )
 
 class TextFxPresetManager(context: Context) {
@@ -32,6 +33,7 @@ class TextFxPresetManager(context: Context) {
         editor.putFloat("preset_${safeName}_glow", state.glow)
         editor.putFloat("preset_${safeName}_stroke", state.stroke)
         editor.putFloat("preset_${safeName}_bevel", state.bevel)
+        editor.putString("preset_${safeName}_layers", state.layerStackJson)
         editor.putString("preset_last_name", safeName)
         editor.apply()
     }
@@ -55,7 +57,8 @@ class TextFxPresetManager(context: Context) {
             shadowY = prefs.getFloat("preset_${safeName}_shadow_y", 6f),
             glow = prefs.getFloat("preset_${safeName}_glow", 18f),
             stroke = prefs.getFloat("preset_${safeName}_stroke", 8f),
-            bevel = prefs.getFloat("preset_${safeName}_bevel", 7f)
+            bevel = prefs.getFloat("preset_${safeName}_bevel", 7f),
+            layerStackJson = prefs.getString("preset_${safeName}_layers", "[]") ?: "[]"
         )
     }
 }

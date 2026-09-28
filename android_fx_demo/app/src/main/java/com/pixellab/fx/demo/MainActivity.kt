@@ -759,6 +759,48 @@ class MainActivity : AppCompatActivity() {
         return row
     }
 
+    private fun layerStackToJson(layers: List<TextLayer>): String {
+        return layers.joinToString(prefix = "[", postfix = "]") { layer ->
+            "{\"id\":${layer.id},\"name\":\"${layer.name.replace("\\", "\\\\").replace("\"", "\\\"") }\",\"type\":\"${layer.type.name}\",\"enabled\":${layer.enabled},\"offsetX\":${layer.offsetX},\"offsetY\":${layer.offsetY},\"accentColor\":${layer.accentColor},\"blurRadius\":${layer.blurRadius},\"layerStrength\":${layer.layerStrength},\"opacity\":${layer.opacity},\"blendMode\":\"${layer.blendMode}\"}"
+        }
+    }
+
+    private fun layerStackFromJson(json: String): List<TextLayer> {
+        if (json.isBlank() || json == "[]") return emptyList()
+        val layers = mutableListOf<TextLayer>()
+        val items = json.removePrefix("[").removeSuffix("]").split("},")
+        for (item in items) {
+            val clean = item.trim().removePrefix("{").removeSuffix("}")
+            if (clean.isBlank()) continue
+            val pairs = clean.split(",")
+            val map = hashMapOf<String, String>()
+            for (pair in pairs) {
+                val parts = pair.split(":", limit = 2)
+                if (parts.size == 2) {
+                    map[parts[0].trim().trim('"')] = parts[1].trim()
+                }
+            }
+            val name = map["name"]?.trim('"') ?: "Layer"
+            val typeName = map["type"]?.trim('"') ?: TextFxType.DROP_SHADOW.name
+            val type = try { TextFxType.valueOf(typeName) } catch (_: IllegalArgumentException) { TextFxType.DROP_SHADOW }
+            val layer = TextLayer(
+                id = map["id"]?.toIntOrNull() ?: 1,
+                name = name,
+                type = type,
+                enabled = map["enabled"]?.toBooleanStrictOrNull() ?: true,
+                offsetX = map["offsetX"]?.toIntOrNull() ?: 0,
+                offsetY = map["offsetY"]?.toIntOrNull() ?: 0,
+                accentColor = map["accentColor"]?.toIntOrNull() ?: Color.parseColor("#7db4ff"),
+                blurRadius = map["blurRadius"]?.toFloatOrNull() ?: 12f,
+                layerStrength = map["layerStrength"]?.toFloatOrNull() ?: 1f,
+                opacity = map["opacity"]?.toFloatOrNull() ?: 1f,
+                blendMode = map["blendMode"]?.trim('"') ?: "Normal"
+            )
+            layers.add(layer)
+        }
+        return layers
+    }
+
     private fun updateSelectedEffect() {
         val fx = FxConfig(
             type = selectedType,
@@ -883,6 +925,82 @@ class MainActivity : AppCompatActivity() {
             setTextColor(Color.parseColor("#7db4ff"))
         }
         layerEditorContainer.addView(title)
+
+        val nameInput = EditText(this).apply {
+            setText(layer.name)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1d2531"))
+            setSingleLine()
+            setPadding(12, 8, 12, 8)
+            setOnEditorActionListener { _, _, _ ->
+                val newName = text?.toString()?.trim().orEmpty()
+                if (newName.isNotEmpty()) {
+                    layer.name = newName
+                    selectedLayerName = newName
+                    rebuildLayerStackUI()
+                    refreshSelectedLayerEditor()
+                    applyTextFxPreset(selectedTextPreset)
+                }
+                false
+            }
+        }
+        layerEditorContainer.addView(nameInput)
+
+        val colorPreview = View(this).apply {
+            setBackgroundColor(layer.accentColor)
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 32)
+        }
+        layerEditorContainer.addView(colorPreview)
+
+        val colorBtn = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+            text = "Color: ${String.format("#%06X", (0xFFFFFF and layer.accentColor))}"
+            setOnClickListener {
+                val colorDialog = AlertDialog.Builder(this@MainActivity)
+                val pickerLayout = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(24, 16, 24, 16)
+                }
+                val preview = View(this@MainActivity).apply {
+                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 48)
+                    setBackgroundColor(layer.accentColor)
+                }
+                val red = SeekBar(this@MainActivity).apply { max = 255; progress = Color.red(layer.accentColor) }
+                val green = SeekBar(this@MainActivity).apply { max = 255; progress = Color.green(layer.accentColor) }
+                val blue = SeekBar(this@MainActivity).apply { max = 255; progress = Color.blue(layer.accentColor) }
+                fun syncColor() {
+                    val c = Color.rgb(red.progress, green.progress, blue.progress)
+                    preview.setBackgroundColor(c)
+                    layer.accentColor = c
+                    colorPreview.setBackgroundColor(c)
+                    colorBtn.text = "Color: ${String.format("#%06X", (0xFFFFFF and c))}"
+                    applyTextFxPreset(selectedTextPreset)
+                }
+                red.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = syncColor()
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                })
+                green.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = syncColor()
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                })
+                blue.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = syncColor()
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                })
+                pickerLayout.addView(preview)
+                pickerLayout.addView(TextView(this@MainActivity).apply { text = "R"; setTextColor(Color.WHITE) })
+                pickerLayout.addView(red)
+                pickerLayout.addView(TextView(this@MainActivity).apply { text = "G"; setTextColor(Color.WHITE) })
+                pickerLayout.addView(green)
+                pickerLayout.addView(TextView(this@MainActivity).apply { text = "B"; setTextColor(Color.WHITE) })
+                pickerLayout.addView(blue)
+                colorDialog.setTitle("Choose Layer Color").setView(pickerLayout).setPositiveButton("Done", null).show()
+            }
+        }
+        layerEditorContainer.addView(colorBtn)
 
         val blendBtn = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
             text = "Blend: ${layer.blendMode}"
@@ -1181,7 +1299,8 @@ class MainActivity : AppCompatActivity() {
             shadowY = textFxShadowDyValue,
             glow = textFxGlowValue,
             stroke = textFxStrokeValue,
-            bevel = textFxBevelDepthValue
+            bevel = textFxBevelDepthValue,
+            layerStackJson = layerStackToJson(layerStack)
         )
         presetManager.save(name, state)
         Toast.makeText(this, "Preset saved: $name", Toast.LENGTH_SHORT).show()
@@ -1205,10 +1324,26 @@ class MainActivity : AppCompatActivity() {
         textFxStrokeValue = loaded.stroke
         textFxBevelDepthValue = loaded.bevel
 
+        layerStack.clear()
+        layerStack.addAll(layerStackFromJson(loaded.layerStackJson))
+        if (layerStack.isEmpty()) {
+            layerStack.addAll(listOf(
+                TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, true, 0, 0, Color.parseColor("#7db4ff"), 16f, 1f, 1f, "Normal"),
+                TextLayer(2, "Glow", TextFxType.OUTER_GLOW, true, 0, 0, Color.parseColor("#7ef0c1"), 18f, 1.2f, 1f, "Screen"),
+                TextLayer(3, "Stroke", TextFxType.STROKE, true, 0, 0, Color.parseColor("#ffb86b"), 8f, 1.2f, 1f, "Normal"),
+                TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, true, 0, 0, Color.parseColor("#d0a2ff"), 12f, 1.1f, 1f, "Overlay"),
+                TextLayer(5, "Bevel", TextFxType.BEVEL, true, 0, 0, Color.parseColor("#ffd166"), 10f, 1.4f, 1f, "Normal")
+            ))
+        }
+        selectedLayerName = layerStack.firstOrNull()?.name ?: "Shadow"
+
         customColorInput.setText(String.format("#%06X", (0xFFFFFF and currentTextColor)))
         presetNameInput.setText(loaded.name)
         textValueInput.setText(textInputValue)
         updateFontButtons(fontRow)
+        syncLayerBooleansFromStack()
+        refreshSelectedLayerEditor()
+        rebuildLayerStackUI()
         applyTextFxPreset(selectedTextPreset)
         Toast.makeText(this, "Preset loaded: ${loaded.name}", Toast.LENGTH_SHORT).show()
     }
