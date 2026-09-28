@@ -18,7 +18,8 @@ enum class TextFxType {
     STROKE,
     GRADIENT_FILL,
     INNER_GLOW,
-    BEVEL
+    BEVEL,
+    MULTI_LAYER
 }
 
 data class TextFxConfig(
@@ -70,6 +71,7 @@ object TextFx {
             TextFxType.GRADIENT_FILL -> drawGradientFill(canvas, config, baseX, baseY)
             TextFxType.INNER_GLOW -> drawInnerGlow(canvas, config, baseX, baseY)
             TextFxType.BEVEL -> drawBevel(canvas, config, baseX, baseY)
+            TextFxType.MULTI_LAYER -> drawMultiLayer(canvas, config, baseX, baseY)
         }
 
         return output
@@ -181,6 +183,35 @@ object TextFx {
         canvas.drawText(config.text, x + config.bevelDepth, y + config.bevelDepth, shadowPaint)
         canvas.drawText(config.text, x - config.bevelDepth / 2f, y - config.bevelDepth / 2f, highlightPaint)
         drawFill(canvas, config, x, y)
+    }
+
+    private fun drawMultiLayer(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {
+        val shadowLayer = config.copy(
+            type = TextFxType.DROP_SHADOW,
+            shadowRadius = config.shadowRadius.coerceAtLeast(8f),
+            shadowDx = config.shadowDx.coerceAtLeast(4f),
+            shadowDy = config.shadowDy.coerceAtLeast(4f)
+        )
+        val glowLayer = config.copy(
+            type = TextFxType.OUTER_GLOW,
+            glowColor = config.glowColor ?: Color.argb(180, 120, 200, 255),
+            glowRadius = config.glowRadius.coerceAtLeast(12f)
+        )
+        val strokeLayer = config.copy(
+            type = TextFxType.STROKE,
+            strokeColor = config.strokeColor ?: Color.argb(220, 40, 40, 40),
+            strokeWidth = config.strokeWidth.coerceAtLeast(4f)
+        )
+        val gradientLayer = config.copy(
+            type = TextFxType.GRADIENT_FILL,
+            textSize = config.textSize,
+            gradientColors = config.gradientColors
+        )
+
+        drawDropShadow(canvas, shadowLayer, x, y)
+        drawOuterGlow(canvas, glowLayer, x, y)
+        drawStroke(canvas, strokeLayer, x, y)
+        drawGradientFill(canvas, gradientLayer, x, y)
     }
 
     private fun drawFill(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {

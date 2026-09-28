@@ -246,7 +246,8 @@ class MainActivity : AppCompatActivity() {
             "Glow" to TextFxType.OUTER_GLOW,
             "Stroke" to TextFxType.STROKE,
             "Gradient" to TextFxType.GRADIENT_FILL,
-            "Bevel" to TextFxType.BEVEL
+            "Bevel" to TextFxType.BEVEL,
+            "Multi" to TextFxType.MULTI_LAYER
         )
 
         textPresetNames.forEach { (name, type) ->
@@ -559,6 +560,26 @@ class MainActivity : AppCompatActivity() {
                 fillColor = Color.WHITE,
                 glowColor = Color.argb(200, 255, 255, 255),
                 glowRadius = textFxGlowValue
+            )
+            TextFxType.MULTI_LAYER -> TextFxConfig(
+                text = "PS FX",
+                type = TextFxType.MULTI_LAYER,
+                textSize = textFxSizeValue,
+                fillColor = Color.parseColor("#FFF3E0"),
+                shadowColor = Color.argb(220, 0, 0, 0),
+                shadowRadius = textFxShadowBlurValue,
+                shadowDx = textFxShadowDxValue,
+                shadowDy = textFxShadowDyValue,
+                glowColor = Color.argb(200, 120, 200, 255),
+                glowRadius = textFxGlowValue,
+                strokeColor = Color.parseColor("#5E35B1"),
+                strokeWidth = textFxStrokeValue,
+                gradientColors = intArrayOf(
+                    Color.parseColor("#FFD54F"),
+                    Color.parseColor("#FF7043"),
+                    Color.parseColor("#7E57C2")
+                ),
+                bevelDepth = textFxBevelDepthValue
             )
         }
         fxView.setSourceBitmap(TextFx.renderTextBitmap(config))
