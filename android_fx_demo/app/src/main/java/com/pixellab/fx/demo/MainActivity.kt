@@ -59,14 +59,25 @@ class MainActivity : AppCompatActivity() {
     private var layerBevelEnabled = true
     private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
     private val presetManager by lazy { TextFxPresetManager(this) }
-
-    private fun buildTextLayers(): List<TextLayer> = listOf(
-        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, layerShadowEnabled),
-        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, layerGlowEnabled),
-        TextLayer(3, "Stroke", TextFxType.STROKE, layerStrokeEnabled),
-        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, layerGradientEnabled),
-        TextLayer(5, "Bevel", TextFxType.BEVEL, layerBevelEnabled)
+    private val layerStack = mutableListOf(
+        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, true, 0, 0, Color.parseColor("#7db4ff")),
+        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, true, 0, 0, Color.parseColor("#7ef0c1")),
+        TextLayer(3, "Stroke", TextFxType.STROKE, true, 0, 0, Color.parseColor("#ffb86b")),
+        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, true, 0, 0, Color.parseColor("#d0a2ff")),
+        TextLayer(5, "Bevel", TextFxType.BEVEL, true, 0, 0, Color.parseColor("#ffd166"))
     )
+    private lateinit var layerStackContainer: LinearLayout
+    private lateinit var layerToggleRow: LinearLayout
+
+    private fun syncLayerBooleansFromStack() {
+        layerShadowEnabled = layerStack.firstOrNull { it.name == "Shadow" }?.enabled == true
+        layerGlowEnabled = layerStack.firstOrNull { it.name == "Glow" }?.enabled == true
+        layerStrokeEnabled = layerStack.firstOrNull { it.name == "Stroke" }?.enabled == true
+        layerGradientEnabled = layerStack.firstOrNull { it.name == "Gradient" }?.enabled == true
+        layerBevelEnabled = layerStack.firstOrNull { it.name == "Bevel" }?.enabled == true
+    }
+
+    private fun buildTextLayers(): List<TextLayer> = layerStack.toList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -416,7 +427,7 @@ class MainActivity : AppCompatActivity() {
         customColorRow.addView(customColorBtn)
         controlsCard.addView(customColorRow)
 
-        val layerToggleRow = LinearLayout(this).apply {
+        layerToggleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 8, 0, 8)
@@ -434,19 +445,33 @@ class MainActivity : AppCompatActivity() {
                 textSize = 10f
                 setOnClickListener {
                     val current = getter.get()
-                    if (label == "Shadow") layerShadowEnabled = !current
-                    if (label == "Glow") layerGlowEnabled = !current
-                    if (label == "Stroke") layerStrokeEnabled = !current
-                    if (label == "Gradient") layerGradientEnabled = !current
-                    if (label == "Bevel") layerBevelEnabled = !current
-                    updateLayerToggleStyles(layerToggleRow)
-                    applyTextFxPreset(selectedTextPreset)
+                    val match = layerStack.firstOrNull { it.name == label }
+                    if (match != null) {
+                        match.enabled = !current
+                        syncLayerBooleansFromStack()
+                        rebuildLayerStackUI()
+                        updateLayerToggleStyles(layerToggleRow)
+                        applyTextFxPreset(selectedTextPreset)
+                    }
                 }
             }
             layerToggleRow.addView(toggle)
         }
         updateLayerToggleStyles(layerToggleRow)
         controlsCard.addView(layerToggleRow)
+
+        val layerPanelTitle = TextView(this).apply {
+            text = "Layer Stack"
+            textSize = 13f
+            setTextColor(Color.parseColor("#dfe7f6"))
+            setPadding(0, 10, 0, 6)
+        }
+        controlsCard.addView(layerPanelTitle)
+        layerStackContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        controlsCard.addView(layerStackContainer)
+        rebuildLayerStackUI()
 
         val swatchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -779,6 +804,74 @@ class MainActivity : AppCompatActivity() {
             )
         }
         fxView.setSourceBitmap(TextFx.renderTextBitmap(config, buildTextLayers()))
+    }
+
+    private fun rebuildLayerStackUI() {
+        layerStackContainer.removeAllViews()
+        layerStack.forEachIndexed { index, layer ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 6, 0, 6)
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val label = TextView(this).apply {
+                text = layer.name
+                textSize = 12f
+                setTextColor(if (layer.enabled) Color.WHITE else Color.parseColor("#8ea0b7"))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val toggle = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+                text = if (layer.enabled) "On" else "Off"
+                textSize = 10f
+                setOnClickListener {
+                    layer.enabled = !layer.enabled
+                    syncLayerBooleansFromStack()
+                    rebuildLayerStackUI()
+                    updateLayerToggleStyles(layerToggleRow)
+                    applyTextFxPreset(selectedTextPreset)
+                }
+            }
+
+            val up = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+                text = "↑"
+                textSize = 10f
+                setOnClickListener {
+                    if (index > 0) {
+                        val previous = layerStack[index - 1]
+                        layerStack[index - 1] = layer
+                        layerStack[index] = previous
+                        rebuildLayerStackUI()
+                        applyTextFxPreset(selectedTextPreset)
+                    }
+                }
+            }
+
+            val down = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+                text = "↓"
+                textSize = 10f
+                setOnClickListener {
+                    if (index < layerStack.lastIndex) {
+                        val next = layerStack[index + 1]
+                        layerStack[index + 1] = layer
+                        layerStack[index] = next
+                        rebuildLayerStackUI()
+                        applyTextFxPreset(selectedTextPreset)
+                    }
+                }
+            }
+
+            row.addView(label)
+            row.addView(toggle)
+            row.addView(up)
+            row.addView(down)
+            layerStackContainer.addView(row)
+        }
     }
 
     private fun updateFontButtons(fontRow: LinearLayout) {

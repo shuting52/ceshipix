@@ -4,6 +4,9 @@ This is a runnable demo project that recreates a Photoshop-like FX panel in Andr
 
 ## Included features
 
+- Real layer stack for text FX composition
+- Layer enable/disable controls
+- Layer ordering controls
 - Drop Shadow
 - Inner Shadow
 - Outer Glow

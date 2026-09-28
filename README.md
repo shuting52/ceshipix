@@ -32,6 +32,9 @@ The demo app under [android_fx_demo](android_fx_demo) is designed to simulate a 
 
 Current features include:
 
+- Real layer stack for text FX editing
+- Layer enable/disable controls
+- Layer ordering controls for Photoshop-style composition
 - Drop shadow
 - Inner shadow
 - Outer glow

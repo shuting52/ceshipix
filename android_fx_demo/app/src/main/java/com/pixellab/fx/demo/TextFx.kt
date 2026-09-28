@@ -39,7 +39,9 @@ data class TextFxConfig(
     val gradientColors: IntArray = intArrayOf(Color.parseColor("#FFB347"), Color.parseColor("#FF5E62"), Color.parseColor("#7A5CFF")),
     val bevelHighlight: Int = Color.argb(140, 255, 255, 255),
     val bevelShadow: Int = Color.argb(140, 30, 30, 30),
-    val bevelDepth: Float = 8f
+    val bevelDepth: Float = 8f,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f
 )
 
 object TextFx {
@@ -66,37 +68,42 @@ object TextFx {
 
         val effectiveLayers = if (layers.isEmpty()) defaultLayers() else layers
         val layerOrder = effectiveLayers.filter { it.enabled }
+        val activeLayer = layerOrder.firstOrNull { it.type == config.type }
+        val offsetConfig = config.copy(
+            offsetX = activeLayer?.offsetX?.toFloat() ?: config.offsetX,
+            offsetY = activeLayer?.offsetY?.toFloat() ?: config.offsetY
+        )
 
         when (config.type) {
             TextFxType.DROP_SHADOW -> {
-                if (layerOrder.any { it.type == TextFxType.DROP_SHADOW }) drawDropShadow(canvas, config, baseX, baseY)
-                else drawFill(canvas, config, baseX, baseY)
+                if (layerOrder.any { it.type == TextFxType.DROP_SHADOW }) drawDropShadow(canvas, offsetConfig, baseX, baseY)
+                else drawFill(canvas, offsetConfig, baseX, baseY)
             }
             TextFxType.OUTER_GLOW -> {
-                if (layerOrder.any { it.type == TextFxType.OUTER_GLOW }) drawOuterGlow(canvas, config, baseX, baseY)
-                else drawFill(canvas, config, baseX, baseY)
+                if (layerOrder.any { it.type == TextFxType.OUTER_GLOW }) drawOuterGlow(canvas, offsetConfig, baseX, baseY)
+                else drawFill(canvas, offsetConfig, baseX, baseY)
             }
             TextFxType.STROKE -> {
-                if (layerOrder.any { it.type == TextFxType.STROKE }) drawStroke(canvas, config, baseX, baseY)
-                else drawFill(canvas, config, baseX, baseY)
+                if (layerOrder.any { it.type == TextFxType.STROKE }) drawStroke(canvas, offsetConfig, baseX, baseY)
+                else drawFill(canvas, offsetConfig, baseX, baseY)
             }
             TextFxType.GRADIENT_FILL -> {
-                if (layerOrder.any { it.type == TextFxType.GRADIENT_FILL }) drawGradientFill(canvas, config, baseX, baseY)
-                else drawFill(canvas, config, baseX, baseY)
+                if (layerOrder.any { it.type == TextFxType.GRADIENT_FILL }) drawGradientFill(canvas, offsetConfig, baseX, baseY)
+                else drawFill(canvas, offsetConfig, baseX, baseY)
             }
             TextFxType.INNER_GLOW -> {
-                if (layerOrder.any { it.type == TextFxType.INNER_GLOW }) drawInnerGlow(canvas, config, baseX, baseY)
-                else drawFill(canvas, config, baseX, baseY)
+                if (layerOrder.any { it.type == TextFxType.INNER_GLOW }) drawInnerGlow(canvas, offsetConfig, baseX, baseY)
+                else drawFill(canvas, offsetConfig, baseX, baseY)
             }
             TextFxType.BEVEL -> {
-                if (layerOrder.any { it.type == TextFxType.BEVEL }) drawBevel(canvas, config, baseX, baseY)
-                else drawFill(canvas, config, baseX, baseY)
+                if (layerOrder.any { it.type == TextFxType.BEVEL }) drawBevel(canvas, offsetConfig, baseX, baseY)
+                else drawFill(canvas, offsetConfig, baseX, baseY)
             }
             TextFxType.MULTI_LAYER -> {
                 if (layerOrder.isNotEmpty()) {
-                    drawMultiLayer(canvas, config, baseX, baseY)
+                    drawMultiLayer(canvas, offsetConfig, baseX, baseY)
                 } else {
-                    drawFill(canvas, config, baseX, baseY)
+                    drawFill(canvas, offsetConfig, baseX, baseY)
                 }
             }
         }
@@ -123,10 +130,10 @@ object TextFx {
             textSize = config.textSize
             style = Paint.Style.FILL
             config.typeface?.let { typeface = it }
-            setShadowLayer(config.shadowRadius, config.shadowDx, config.shadowDy, config.shadowColor)
+            setShadowLayer(config.shadowRadius, config.shadowDx + config.offsetX, config.shadowDy + config.offsetY, config.shadowColor)
         }
-        canvas.drawText(config.text, x + config.shadowDx, y + config.shadowDy, shadowPaint)
-        drawFill(canvas, config, x, y)
+        canvas.drawText(config.text, x + config.shadowDx + config.offsetX, y + config.shadowDy + config.offsetY, shadowPaint)
+        drawFill(canvas, config, x + config.offsetX, y + config.offsetY)
     }
 
     private fun drawOuterGlow(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {
@@ -136,10 +143,10 @@ object TextFx {
             textSize = config.textSize
             style = Paint.Style.FILL
             config.typeface?.let { typeface = it }
-            setShadowLayer(config.glowRadius.coerceAtLeast(2f), 0f, 0f, glow)
+            setShadowLayer(config.glowRadius.coerceAtLeast(2f), 0f + config.offsetX, 0f + config.offsetY, glow)
         }
-        canvas.drawText(config.text, x, y, glowPaint)
-        drawFill(canvas, config, x, y)
+        canvas.drawText(config.text, x + config.offsetX, y + config.offsetY, glowPaint)
+        drawFill(canvas, config, x + config.offsetX, y + config.offsetY)
     }
 
     private fun drawStroke(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {
@@ -152,8 +159,8 @@ object TextFx {
             strokeJoin = Paint.Join.ROUND
             config.typeface?.let { typeface = it }
         }
-        canvas.drawText(config.text, x, y, strokePaint)
-        drawFill(canvas, config, x, y)
+        canvas.drawText(config.text, x + config.offsetX, y + config.offsetY, strokePaint)
+        drawFill(canvas, config, x + config.offsetX, y + config.offsetY)
     }
 
     private fun drawGradientFill(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {
@@ -162,22 +169,22 @@ object TextFx {
             style = Paint.Style.FILL
             config.typeface?.let { typeface = it }
             shader = LinearGradient(
-                x,
-                y - config.textSize,
-                x + config.textSize * 2,
-                y + config.textSize,
+                x + config.offsetX,
+                y - config.textSize + config.offsetY,
+                x + config.textSize * 2 + config.offsetX,
+                y + config.textSize + config.offsetY,
                 config.gradientColors,
                 null,
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawText(config.text, x, y, gradientPaint)
+        canvas.drawText(config.text, x + config.offsetX, y + config.offsetY, gradientPaint)
     }
 
     private fun drawInnerGlow(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {
         val base = Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888)
         val baseCanvas = Canvas(base)
-        drawFill(baseCanvas, config, x, y)
+        drawFill(baseCanvas, config, x + config.offsetX, y + config.offsetY)
 
         val glowColor = config.glowColor ?: Color.argb(200, 255, 255, 255)
         val glow = Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888)
@@ -189,7 +196,7 @@ object TextFx {
             config.typeface?.let { typeface = it }
             maskFilter = BlurMaskFilter(config.glowRadius.coerceAtLeast(4f), BlurMaskFilter.Blur.NORMAL)
         }
-        glowCanvas.drawText(config.text, x, y, glowPaint)
+        glowCanvas.drawText(config.text, x + config.offsetX, y + config.offsetY, glowPaint)
 
         val merged = Bitmap.createBitmap(canvas.width, canvas.height, Bitmap.Config.ARGB_8888)
         val mergedCanvas = Canvas(merged)
@@ -215,9 +222,9 @@ object TextFx {
             config.typeface?.let { typeface = it }
         }
 
-        canvas.drawText(config.text, x + config.bevelDepth, y + config.bevelDepth, shadowPaint)
-        canvas.drawText(config.text, x - config.bevelDepth / 2f, y - config.bevelDepth / 2f, highlightPaint)
-        drawFill(canvas, config, x, y)
+        canvas.drawText(config.text, x + config.bevelDepth + config.offsetX, y + config.bevelDepth + config.offsetY, shadowPaint)
+        canvas.drawText(config.text, x - config.bevelDepth / 2f + config.offsetX, y - config.bevelDepth / 2f + config.offsetY, highlightPaint)
+        drawFill(canvas, config, x + config.offsetX, y + config.offsetY)
     }
 
     private fun drawMultiLayer(canvas: Canvas, config: TextFxConfig, x: Float, y: Float) {
@@ -256,6 +263,6 @@ object TextFx {
             style = Paint.Style.FILL
             config.typeface?.let { typeface = it }
         }
-        canvas.drawText(config.text, x, y, fillPaint)
+        canvas.drawText(config.text, x + config.offsetX, y + config.offsetY, fillPaint)
     }
 }
