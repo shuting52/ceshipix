@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
     private var layerGradientEnabled = true
     private var layerBevelEnabled = true
     private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
-    private val fxPrefs by lazy { getSharedPreferences("ps_text_fx_presets", MODE_PRIVATE) }
+    private val presetManager by lazy { TextFxPresetManager(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -889,44 +889,47 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveCurrentPreset() {
         val name = presetNameInput.text?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "MyPreset"
-        val editor = fxPrefs.edit()
-        editor.putString("preset_${name}_text", textInputValue)
-        editor.putInt("preset_${name}_color", currentTextColor)
-        editor.putFloat("preset_${name}_size", textFxSizeValue)
-        editor.putFloat("preset_${name}_shadow_blur", textFxShadowBlurValue)
-        editor.putFloat("preset_${name}_shadow_x", textFxShadowDxValue)
-        editor.putFloat("preset_${name}_shadow_y", textFxShadowDyValue)
-        editor.putFloat("preset_${name}_glow", textFxGlowValue)
-        editor.putFloat("preset_${name}_stroke", textFxStrokeValue)
-        editor.putFloat("preset_${name}_bevel", textFxBevelDepthValue)
-        editor.putInt("preset_${name}_font", currentFontIndex)
-        editor.putString("preset_last_name", name)
-        editor.apply()
+        val state = TextFxPresetState(
+            name = name,
+            text = textInputValue,
+            textColor = currentTextColor,
+            fontIndex = currentFontIndex,
+            size = textFxSizeValue,
+            shadowBlur = textFxShadowBlurValue,
+            shadowX = textFxShadowDxValue,
+            shadowY = textFxShadowDyValue,
+            glow = textFxGlowValue,
+            stroke = textFxStrokeValue,
+            bevel = textFxBevelDepthValue
+        )
+        presetManager.save(name, state)
         Toast.makeText(this, "Preset saved: $name", Toast.LENGTH_SHORT).show()
     }
 
     private fun loadLatestPreset() {
-        val name = fxPrefs.getString("preset_last_name", "")
-        if (name.isNullOrEmpty()) {
+        val loaded = presetManager.loadLatest()
+        if (loaded == null) {
             Toast.makeText(this, "No preset saved yet", Toast.LENGTH_SHORT).show()
             return
         }
-        textInputValue = fxPrefs.getString("preset_${name}_text", textInputValue) ?: textInputValue
-        currentTextColor = fxPrefs.getInt("preset_${name}_color", currentTextColor)
-        textFxSizeValue = fxPrefs.getFloat("preset_${name}_size", textFxSizeValue)
-        textFxShadowBlurValue = fxPrefs.getFloat("preset_${name}_shadow_blur", textFxShadowBlurValue)
-        textFxShadowDxValue = fxPrefs.getFloat("preset_${name}_shadow_x", textFxShadowDxValue)
-        textFxShadowDyValue = fxPrefs.getFloat("preset_${name}_shadow_y", textFxShadowDyValue)
-        textFxGlowValue = fxPrefs.getFloat("preset_${name}_glow", textFxGlowValue)
-        textFxStrokeValue = fxPrefs.getFloat("preset_${name}_stroke", textFxStrokeValue)
-        textFxBevelDepthValue = fxPrefs.getFloat("preset_${name}_bevel", textFxBevelDepthValue)
-        currentFontIndex = fxPrefs.getInt("preset_${name}_font", currentFontIndex)
+
+        textInputValue = loaded.text
+        currentTextColor = loaded.textColor
+        currentFontIndex = loaded.fontIndex
+        textFxSizeValue = loaded.size
+        textFxShadowBlurValue = loaded.shadowBlur
+        textFxShadowDxValue = loaded.shadowX
+        textFxShadowDyValue = loaded.shadowY
+        textFxGlowValue = loaded.glow
+        textFxStrokeValue = loaded.stroke
+        textFxBevelDepthValue = loaded.bevel
+
         customColorInput.setText(String.format("#%06X", (0xFFFFFF and currentTextColor)))
-        presetNameInput.setText(name)
+        presetNameInput.setText(loaded.name)
         textValueInput.setText(textInputValue)
         updateFontButtons(fontRow)
         applyTextFxPreset(selectedTextPreset)
-        Toast.makeText(this, "Preset loaded: $name", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Preset loaded: ${loaded.name}", Toast.LENGTH_SHORT).show()
     }
 
     private fun exportCurrentTextEffect() {
