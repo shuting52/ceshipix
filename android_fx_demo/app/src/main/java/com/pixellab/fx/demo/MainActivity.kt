@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
@@ -38,6 +39,8 @@ class MainActivity : AppCompatActivity() {
     private var textFxGlowValue = 18f
     private var textFxStrokeValue = 8f
     private var textFxBevelDepthValue = 7f
+    private var textInputValue = "PS FX"
+    private var currentTextColor = Color.WHITE
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -294,6 +297,23 @@ class MainActivity : AppCompatActivity() {
         }
         controlsCard.addView(textFxTitle)
 
+        val textValueInput = EditText(this).apply {
+            setText(textInputValue)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1d2531"))
+            setPadding(12, 10, 12, 10)
+            setSelection(text.length)
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    textInputValue = s?.toString() ?: "PS FX"
+                    applyTextFxPreset(selectedTextPreset)
+                }
+                override fun afterTextChanged(s: android.text.Editable?) = Unit
+            })
+        }
+        controlsCard.addView(textValueInput)
+
         val textFxSliderGroup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -337,13 +357,19 @@ class MainActivity : AppCompatActivity() {
             Color.parseColor("#7db4ff"),
             Color.parseColor("#ff9d41"),
             Color.parseColor("#ff5ca8"),
-            Color.parseColor("#7ef0c1")
+            Color.parseColor("#7ef0c1"),
+            Color.parseColor("#fce4ec"),
+            Color.parseColor("#ffe082")
         )
         swatches.forEach { color ->
             val swatch = View(this).apply {
                 setBackgroundColor(color)
                 layoutParams = LinearLayout.LayoutParams(36, 36).apply {
                     setMargins(0, 0, 12, 0)
+                }
+                setOnClickListener {
+                    currentTextColor = color
+                    applyTextFxPreset(selectedTextPreset)
                 }
             }
             swatchRow.addView(swatch)
@@ -506,10 +532,10 @@ class MainActivity : AppCompatActivity() {
     private fun applyTextFxPreset(type: TextFxType) {
         val config = when (type) {
             TextFxType.DROP_SHADOW -> TextFxConfig(
-                text = "PS FX",
+                text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.DROP_SHADOW,
                 textSize = textFxSizeValue,
-                fillColor = Color.WHITE,
+                fillColor = currentTextColor,
                 shadowColor = Color.argb(220, 0, 0, 0),
                 shadowRadius = textFxShadowBlurValue,
                 shadowDx = textFxShadowDxValue,
@@ -518,26 +544,26 @@ class MainActivity : AppCompatActivity() {
                 strokeWidth = 2f
             )
             TextFxType.OUTER_GLOW -> TextFxConfig(
-                text = "PS FX",
+                text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.OUTER_GLOW,
                 textSize = textFxSizeValue,
-                fillColor = Color.WHITE,
+                fillColor = currentTextColor,
                 glowColor = Color.argb(220, 119, 181, 255),
                 glowRadius = textFxGlowValue
             )
             TextFxType.STROKE -> TextFxConfig(
-                text = "PS FX",
+                text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.STROKE,
                 textSize = textFxSizeValue,
-                fillColor = Color.parseColor("#FFE082"),
+                fillColor = currentTextColor,
                 strokeColor = Color.parseColor("#7C4DFF"),
                 strokeWidth = textFxStrokeValue
             )
             TextFxType.GRADIENT_FILL -> TextFxConfig(
-                text = "PS FX",
+                text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.GRADIENT_FILL,
                 textSize = textFxSizeValue,
-                fillColor = Color.WHITE,
+                fillColor = currentTextColor,
                 gradientColors = intArrayOf(
                     Color.parseColor("#FCB045"),
                     Color.parseColor("#FD1D1D"),
@@ -545,27 +571,27 @@ class MainActivity : AppCompatActivity() {
                 )
             )
             TextFxType.BEVEL -> TextFxConfig(
-                text = "PS FX",
+                text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.BEVEL,
                 textSize = textFxSizeValue,
-                fillColor = Color.parseColor("#FCE4EC"),
+                fillColor = currentTextColor,
                 bevelHighlight = Color.argb(180, 255, 255, 255),
                 bevelShadow = Color.argb(180, 70, 40, 15),
                 bevelDepth = textFxBevelDepthValue
             )
             TextFxType.INNER_GLOW -> TextFxConfig(
-                text = "PS FX",
+                text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.INNER_GLOW,
                 textSize = textFxSizeValue,
-                fillColor = Color.WHITE,
+                fillColor = currentTextColor,
                 glowColor = Color.argb(200, 255, 255, 255),
                 glowRadius = textFxGlowValue
             )
             TextFxType.MULTI_LAYER -> TextFxConfig(
-                text = "PS FX",
+                text = textInputValue.ifEmpty { "PS FX" },
                 type = TextFxType.MULTI_LAYER,
                 textSize = textFxSizeValue,
-                fillColor = Color.parseColor("#FFF3E0"),
+                fillColor = currentTextColor,
                 shadowColor = Color.argb(220, 0, 0, 0),
                 shadowRadius = textFxShadowBlurValue,
                 shadowDx = textFxShadowDxValue,
