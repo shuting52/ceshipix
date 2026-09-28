@@ -70,6 +70,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layerStackContainer: LinearLayout
     private lateinit var layerToggleRow: LinearLayout
     private lateinit var layerEditorContainer: LinearLayout
+    private lateinit var presetListContainer: LinearLayout
 
     private fun syncLayerBooleansFromStack() {
         layerShadowEnabled = layerStack.firstOrNull { it.name == "Shadow" }?.enabled == true
@@ -585,6 +586,7 @@ class MainActivity : AppCompatActivity() {
             text = "Save Preset"
             setOnClickListener {
                 saveCurrentPreset()
+                refreshPresetBrowser()
             }
         }
         val loadPresetBtn = Button(this).apply {
@@ -597,6 +599,13 @@ class MainActivity : AppCompatActivity() {
         presetRow.addView(savePresetBtn)
         presetRow.addView(loadPresetBtn)
         controlsCard.addView(presetRow)
+
+        presetListContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 0)
+        }
+        controlsCard.addView(presetListContainer)
+        refreshPresetBrowser()
 
         val transparentRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -926,6 +935,28 @@ class MainActivity : AppCompatActivity() {
         }
         layerEditorContainer.addView(title)
 
+        val actionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+        val duplicateBtn = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+            text = "Duplicate"
+            setOnClickListener {
+                duplicateSelectedLayer()
+            }
+        }
+        val deleteBtn = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+            text = "Delete"
+            isEnabled = layerStack.size > 1
+            setOnClickListener {
+                deleteSelectedLayer()
+            }
+        }
+        actionRow.addView(duplicateBtn)
+        actionRow.addView(deleteBtn)
+        layerEditorContainer.addView(actionRow)
+
         val nameInput = EditText(this).apply {
             setText(layer.name)
             setTextColor(Color.WHITE)
@@ -1086,14 +1117,34 @@ class MainActivity : AppCompatActivity() {
         applyTextFxPreset(selectedTextPreset)
     }
 
-    private fun deleteSelectedLayer() {
+    private fun duplicateSelectedLayer() {
         val layer = selectedLayer() ?: return
-        if (layerStack.size <= 1) return
-        layerStack.remove(layer)
-        selectedLayerName = layerStack.first().name
+        val duplicate = layer.copy(
+            id = (layerStack.maxOfOrNull { it.id } ?: 0) + 1,
+            name = "${layer.name}_copy"
+        )
+        layerStack.add(duplicate)
+        selectedLayerName = duplicate.name
         refreshSelectedLayerEditor()
         rebuildLayerStackUI()
         applyTextFxPreset(selectedTextPreset)
+    }
+
+    private fun deleteSelectedLayer() {
+        val layer = selectedLayer() ?: return
+        if (layerStack.size <= 1) return
+        AlertDialog.Builder(this)
+            .setTitle("Delete layer")
+            .setMessage("Remove ${layer.name} from this FX stack?")
+            .setPositiveButton("Delete") { _, _ ->
+                layerStack.remove(layer)
+                selectedLayerName = layerStack.first().name
+                refreshSelectedLayerEditor()
+                rebuildLayerStackUI()
+                applyTextFxPreset(selectedTextPreset)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun rebuildLayerStackUI() {
@@ -1306,10 +1357,51 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Preset saved: $name", Toast.LENGTH_SHORT).show()
     }
 
-    private fun loadLatestPreset() {
-        val loaded = presetManager.loadLatest()
+    private fun refreshPresetBrowser() {
+        if (!::presetListContainer.isInitialized) return
+        presetListContainer.removeAllViews()
+        val presets = presetManager.listSavedPresets()
+        if (presets.isEmpty()) {
+            presetListContainer.addView(TextView(this).apply {
+                text = "No saved presets"
+                textSize = 11f
+                setTextColor(Color.parseColor("#9ab5d1"))
+                setPadding(0, 4, 0, 4)
+            })
+            return
+        }
+
+        presets.forEach { name ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 4, 0, 4)
+            }
+            val button = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+                text = name
+                setOnClickListener {
+                    loadPresetByName(name)
+                }
+            }
+            val delete = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
+                text = "Del"
+                setOnClickListener {
+                    if (presetManager.deletePreset(name)) {
+                        Toast.makeText(this@MainActivity, "Preset deleted: $name", Toast.LENGTH_SHORT).show()
+                        refreshPresetBrowser()
+                    }
+                }
+            }
+            row.addView(button)
+            row.addView(delete)
+            presetListContainer.addView(row)
+        }
+    }
+
+    private fun loadPresetByName(name: String) {
+        val loaded = presetManager.loadByName(name)
         if (loaded == null) {
-            Toast.makeText(this, "No preset saved yet", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Preset not found: $name", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -1346,6 +1438,15 @@ class MainActivity : AppCompatActivity() {
         rebuildLayerStackUI()
         applyTextFxPreset(selectedTextPreset)
         Toast.makeText(this, "Preset loaded: ${loaded.name}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun loadLatestPreset() {
+        val loaded = presetManager.loadLatest()
+        if (loaded == null) {
+            Toast.makeText(this, "No preset saved yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        loadPresetByName(loaded.name)
     }
 
     private fun exportCurrentTextEffect() {

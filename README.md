@@ -35,6 +35,8 @@ Current features include:
 - Real layer stack for text FX editing
 - Layer enable/disable controls
 - Layer ordering controls for Photoshop-style composition
+- Layer duplication and safe delete workflow
+- Preset browser with saved FX package selection and deletion
 - Drop shadow
 - Inner shadow
 - Outer glow

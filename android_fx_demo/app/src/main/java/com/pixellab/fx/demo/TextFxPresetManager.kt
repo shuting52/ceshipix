@@ -38,6 +38,26 @@ class TextFxPresetManager(context: Context) {
         editor.apply()
     }
 
+    fun listSavedPresets(): List<String> {
+        return prefs.all.keys
+            .filter { it.startsWith("preset_") && it.endsWith("_text") }
+            .map { it.removePrefix("preset_").removeSuffix("_text") }
+            .distinct()
+            .sorted()
+    }
+
+    fun deletePreset(name: String): Boolean {
+        val safeName = name.trim().ifBlank { return false }
+        val keysToDelete = prefs.all.keys.filter { it.startsWith("preset_${safeName}_") || it == "preset_last_name" }
+        if (keysToDelete.isEmpty()) return false
+        val editor = prefs.edit()
+        for (key in keysToDelete) {
+            editor.remove(key)
+        }
+        editor.apply()
+        return true
+    }
+
     fun loadLatest(): TextFxPresetState? {
         val lastName = prefs.getString("preset_last_name", "") ?: return null
         return loadByName(lastName)
