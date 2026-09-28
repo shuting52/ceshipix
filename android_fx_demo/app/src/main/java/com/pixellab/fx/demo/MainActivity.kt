@@ -57,17 +57,19 @@ class MainActivity : AppCompatActivity() {
     private var layerStrokeEnabled = true
     private var layerGradientEnabled = true
     private var layerBevelEnabled = true
+    private var selectedLayerName = "Shadow"
     private val fontNames = listOf("Default", "Bold", "Serif", "Mono")
     private val presetManager by lazy { TextFxPresetManager(this) }
     private val layerStack = mutableListOf(
-        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, true, 0, 0, Color.parseColor("#7db4ff")),
-        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, true, 0, 0, Color.parseColor("#7ef0c1")),
-        TextLayer(3, "Stroke", TextFxType.STROKE, true, 0, 0, Color.parseColor("#ffb86b")),
-        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, true, 0, 0, Color.parseColor("#d0a2ff")),
-        TextLayer(5, "Bevel", TextFxType.BEVEL, true, 0, 0, Color.parseColor("#ffd166"))
+        TextLayer(1, "Shadow", TextFxType.DROP_SHADOW, true, 0, 0, Color.parseColor("#7db4ff"), 16f, 1f),
+        TextLayer(2, "Glow", TextFxType.OUTER_GLOW, true, 0, 0, Color.parseColor("#7ef0c1"), 18f, 1.2f),
+        TextLayer(3, "Stroke", TextFxType.STROKE, true, 0, 0, Color.parseColor("#ffb86b"), 8f, 1.2f),
+        TextLayer(4, "Gradient", TextFxType.GRADIENT_FILL, true, 0, 0, Color.parseColor("#d0a2ff"), 12f, 1.1f),
+        TextLayer(5, "Bevel", TextFxType.BEVEL, true, 0, 0, Color.parseColor("#ffd166"), 10f, 1.4f)
     )
     private lateinit var layerStackContainer: LinearLayout
     private lateinit var layerToggleRow: LinearLayout
+    private lateinit var layerEditorContainer: LinearLayout
 
     private fun syncLayerBooleansFromStack() {
         layerShadowEnabled = layerStack.firstOrNull { it.name == "Shadow" }?.enabled == true
@@ -78,6 +80,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildTextLayers(): List<TextLayer> = layerStack.toList()
+
+    private fun selectedLayer(): TextLayer? = layerStack.firstOrNull { it.name == selectedLayerName }
+
+    private fun applySelectedLayerOverrides(config: TextFxConfig): TextFxConfig {
+        val layer = selectedLayer() ?: return config
+        if (layer.type != config.type) return config
+
+        return when (config.type) {
+            TextFxType.DROP_SHADOW -> config.copy(
+                shadowRadius = maxOf(config.shadowRadius, layer.blurRadius),
+                shadowDx = layer.offsetX.toFloat(),
+                shadowDy = layer.offsetY.toFloat(),
+                shadowColor = layer.accentColor
+            )
+            TextFxType.OUTER_GLOW -> config.copy(
+                glowRadius = maxOf(config.glowRadius, layer.blurRadius),
+                glowColor = layer.accentColor
+            )
+            TextFxType.STROKE -> config.copy(
+                strokeColor = layer.accentColor,
+                strokeWidth = maxOf(config.strokeWidth, layer.layerStrength * 8f)
+            )
+            TextFxType.GRADIENT_FILL -> config.copy(
+                fillColor = layer.accentColor,
+                gradientColors = intArrayOf(
+                    layer.accentColor,
+                    Color.parseColor("#FD1D1D"),
+                    Color.parseColor("#833AB4")
+                )
+            )
+            TextFxType.BEVEL -> config.copy(
+                bevelDepth = maxOf(config.bevelDepth, layer.layerStrength * 10f),
+                bevelHighlight = layer.accentColor
+            )
+            else -> config
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -471,7 +510,20 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
         }
         controlsCard.addView(layerStackContainer)
+
+        val layerEditorTitle = TextView(this).apply {
+            text = "Selected Layer"
+            textSize = 13f
+            setTextColor(Color.parseColor("#dfe7f6"))
+            setPadding(0, 12, 0, 6)
+        }
+        controlsCard.addView(layerEditorTitle)
+        layerEditorContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        controlsCard.addView(layerEditorContainer)
         rebuildLayerStackUI()
+        refreshSelectedLayerEditor()
 
         val swatchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -803,7 +855,37 @@ class MainActivity : AppCompatActivity() {
                 bevelDepth = textFxBevelDepthValue
             )
         }
-        fxView.setSourceBitmap(TextFx.renderTextBitmap(config, buildTextLayers()))
+        fxView.setSourceBitmap(TextFx.renderTextBitmap(applySelectedLayerOverrides(config), buildTextLayers()))
+    }
+
+    private fun refreshSelectedLayerEditor() {
+        if (!::layerEditorContainer.isInitialized) return
+        layerEditorContainer.removeAllViews()
+
+        val layer = selectedLayer() ?: return
+        val title = TextView(this).apply {
+            text = "${layer.name} • ${layer.type.name.replace('_', ' ')}"
+            textSize = 12f
+            setTextColor(Color.parseColor("#7db4ff"))
+        }
+        layerEditorContainer.addView(title)
+
+        layerEditorContainer.addView(makeSliderRow("Offset X", -40f, 40f, layer.offsetX.toFloat()) { value ->
+            layer.offsetX = value.toInt()
+            applyTextFxPreset(selectedTextPreset)
+        })
+        layerEditorContainer.addView(makeSliderRow("Offset Y", -40f, 40f, layer.offsetY.toFloat()) { value ->
+            layer.offsetY = value.toInt()
+            applyTextFxPreset(selectedTextPreset)
+        })
+        layerEditorContainer.addView(makeSliderRow("Blur", 0f, 40f, layer.blurRadius) { value ->
+            layer.blurRadius = value
+            applyTextFxPreset(selectedTextPreset)
+        })
+        layerEditorContainer.addView(makeSliderRow("Strength", 0.2f, 2f, layer.layerStrength) { value ->
+            layer.layerStrength = value
+            applyTextFxPreset(selectedTextPreset)
+        })
     }
 
     private fun rebuildLayerStackUI() {
@@ -822,8 +904,13 @@ class MainActivity : AppCompatActivity() {
             val label = TextView(this).apply {
                 text = layer.name
                 textSize = 12f
-                setTextColor(if (layer.enabled) Color.WHITE else Color.parseColor("#8ea0b7"))
+                setTextColor(if (layer.name == selectedLayerName) Color.parseColor("#7db4ff") else if (layer.enabled) Color.WHITE else Color.parseColor("#8ea0b7"))
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener {
+                    selectedLayerName = layer.name
+                    refreshSelectedLayerEditor()
+                    rebuildLayerStackUI()
+                }
             }
 
             val toggle = Button(this, null, android.R.style.Widget_MaterialButton_OutlinedButton).apply {
@@ -832,6 +919,7 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener {
                     layer.enabled = !layer.enabled
                     syncLayerBooleansFromStack()
+                    refreshSelectedLayerEditor()
                     rebuildLayerStackUI()
                     updateLayerToggleStyles(layerToggleRow)
                     applyTextFxPreset(selectedTextPreset)
@@ -846,6 +934,7 @@ class MainActivity : AppCompatActivity() {
                         val previous = layerStack[index - 1]
                         layerStack[index - 1] = layer
                         layerStack[index] = previous
+                        refreshSelectedLayerEditor()
                         rebuildLayerStackUI()
                         applyTextFxPreset(selectedTextPreset)
                     }
@@ -860,6 +949,7 @@ class MainActivity : AppCompatActivity() {
                         val next = layerStack[index + 1]
                         layerStack[index + 1] = layer
                         layerStack[index] = next
+                        refreshSelectedLayerEditor()
                         rebuildLayerStackUI()
                         applyTextFxPreset(selectedTextPreset)
                     }
